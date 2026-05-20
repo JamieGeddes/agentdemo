@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { TICKET_PRIORITIES, type TicketPriority } from "@agentdemo/shared";
 import { useTickets } from "../state/TicketsProvider.js";
 
@@ -14,9 +14,19 @@ export function NewTicketModal({
   const [subject, setSubject] = useState("");
   const [body, setBody] = useState("");
   const [priority, setPriority] = useState<TicketPriority>("normal");
-  const [customerId, setCustomerId] = useState(customers[0]?.id ?? "");
+  const [customerId, setCustomerId] = useState("");
   const [assigneeId, setAssigneeId] = useState("");
   const [submitting, setSubmitting] = useState(false);
+
+  // Customers load asynchronously; auto-select the first one once the list is
+  // available (or if the current selection isn't in it). Without this, opening
+  // the modal before customers arrive leaves the dropdown blank and Create
+  // permanently disabled.
+  useEffect(() => {
+    if (customers.length && !customers.some((c) => c.id === customerId)) {
+      setCustomerId(customers[0].id);
+    }
+  }, [customers, customerId]);
 
   const canSubmit = subject.trim() && body.trim() && customerId && !submitting;
 
@@ -73,12 +83,21 @@ export function NewTicketModal({
         <div className="modal__grid">
           <label className="modal__field">
             <span className="modal__label">Customer</span>
-            <select className="select" value={customerId} onChange={(e) => setCustomerId(e.target.value)}>
-              {customers.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.company}
-                </option>
-              ))}
+            <select
+              className="select"
+              value={customerId}
+              onChange={(e) => setCustomerId(e.target.value)}
+              disabled={!customers.length}
+            >
+              {customers.length === 0 ? (
+                <option value="">Loading customers…</option>
+              ) : (
+                customers.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.company}
+                  </option>
+                ))
+              )}
             </select>
           </label>
 

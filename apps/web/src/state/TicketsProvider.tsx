@@ -67,10 +67,23 @@ export function TicketsProvider({ children }: { children: ReactNode }) {
     void refresh();
   }, [refresh]);
 
-  useEffect(() => {
-    void api.listCustomers().then(setCustomers);
-    void api.listAgents().then(setAgents);
+  // Reference data (customers/agents) for the pickers. Retry on failure: under
+  // `npm run dev` all three servers boot concurrently, so the first load can
+  // hit Fastify before it's ready — a single swallowed rejection would leave the
+  // dropdowns empty (and ticket creation blocked) for the whole session.
+  const loadRefData = useCallback(async () => {
+    try {
+      const [c, a] = await Promise.all([api.listCustomers(), api.listAgents()]);
+      setCustomers(c);
+      setAgents(a);
+    } catch {
+      setTimeout(() => void loadRefData(), 1000);
+    }
   }, []);
+
+  useEffect(() => {
+    void loadRefData();
+  }, [loadRefData]);
 
   const selectTicket = useCallback((id: string | null) => setSelectedId(id), []);
 
