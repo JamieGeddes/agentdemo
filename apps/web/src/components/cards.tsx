@@ -70,6 +70,55 @@ export function ToolActivityChip(props: { name: string; status: "inProgress" | "
   );
 }
 
+/** Human-in-the-loop approval card for a ticket the agent proposes creating. */
+export function TicketCreateApprovalCard(props: {
+  subject: string;
+  body: string;
+  priority: TicketPriority;
+  customerName: string;
+  resolvedCompany: string | null;
+  status: "executing" | "complete" | "inProgress";
+  onApprove: () => void;
+  onCancel: () => void;
+  outcome?: "created" | "cancelled" | null;
+  createdId?: string | null;
+}) {
+  const decided = props.outcome != null || props.status === "complete";
+  const resolved = props.resolvedCompany != null;
+  return (
+    <div className="gcard approve">
+      <div className="gcard__label">＋ New ticket</div>
+      <p className="gcard__title">{props.subject || "Untitled ticket"}</p>
+      <div className="approve__draft">{props.body}</div>
+      <div className="gcard__row">
+        <PriorityPill priority={props.priority} />
+        <span style={{ fontSize: 12, color: "var(--slate-500)" }}>
+          ·{" "}
+          {resolved ? (
+            <>Customer: <b>{props.resolvedCompany}</b></>
+          ) : (
+            <span style={{ color: "var(--red)" }}>No customer matches “{props.customerName}”</span>
+          )}
+        </span>
+      </div>
+      {!decided ? (
+        <div className="approve__actions">
+          <button className="btn" onClick={props.onApprove} disabled={!resolved}>
+            Approve &amp; create
+          </button>
+          <button className="btn btn--danger" onClick={props.onCancel}>Discard</button>
+        </div>
+      ) : (
+        <div
+          className={`approve__status ${props.outcome === "created" ? "approve__status--sent" : "approve__status--cancelled"}`}
+        >
+          {props.outcome === "created" ? `✓ Created ${props.createdId ?? "ticket"}` : "Discarded"}
+        </div>
+      )}
+    </div>
+  );
+}
+
 /** Human-in-the-loop reply approval card (rendered via renderAndWaitForResponse). */
 export function ReplyApprovalCard(props: {
   ticketId: string;

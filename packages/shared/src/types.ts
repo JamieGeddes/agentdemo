@@ -67,6 +67,17 @@ export interface TicketPatch {
   tags?: string[];
 }
 
+/** Fields needed to create a new ticket; the rest (id/timestamps/messages) are generated. */
+export interface TicketCreateInput {
+  subject: string;
+  body: string;
+  customerId: string;
+  priority?: TicketPriority; // default "normal"
+  status?: TicketStatus; // default "open"
+  assigneeId?: string | null; // default null
+  tags?: string[]; // default []
+}
+
 /** Query filters for listing tickets. */
 export interface TicketListQuery {
   status?: TicketStatus;

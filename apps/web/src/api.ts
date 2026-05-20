@@ -2,6 +2,7 @@ import type {
   Agent,
   Customer,
   Ticket,
+  TicketCreateInput,
   TicketListQuery,
   TicketPatch,
 } from "@agentdemo/shared";
@@ -27,6 +28,13 @@ export const api = {
     fetch(`/api/tickets${qs(query)}`).then(json<Ticket[]>),
 
   getTicket: (id: string) => fetch(`/api/tickets/${id}`).then(json<Ticket>),
+
+  createTicket: (input: TicketCreateInput) =>
+    fetch("/api/tickets", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(input),
+    }).then(json<Ticket>),
 
   patchTicket: (id: string, patch: TicketPatch) =>
     fetch(`/api/tickets/${id}`, {

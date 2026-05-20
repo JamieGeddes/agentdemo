@@ -104,6 +104,7 @@ button { font-family: inherit; cursor: pointer; }
   min-height: 0;
 }
 .list__head { padding: 20px 20px 14px; border-bottom: 1px solid var(--line-soft); }
+.list__head-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
 .list__title { font-size: 19px; font-weight: 700; letter-spacing: -0.01em; color: var(--ink-900); margin: 0; }
 .list__sub { font-size: 13px; color: var(--slate-500); margin-top: 3px; }
 
@@ -194,6 +195,42 @@ button { font-family: inherit; cursor: pointer; }
 .btn--ghost { background: var(--surface); color: var(--slate-600); border: 1px solid var(--line); }
 .btn--ghost:hover { background: var(--canvas); }
 .btn--danger { background: var(--surface); color: var(--red); border: 1px solid var(--red-soft); }
+.btn--sm { padding: 6px 11px; font-size: 12px; }
+
+/* ── New-ticket modal ──────────────────────────────────────────────────── */
+.modal__overlay {
+  position: fixed; inset: 0; z-index: 50;
+  background: rgba(12, 18, 38, 0.42);
+  backdrop-filter: blur(2px);
+  display: grid; place-items: center;
+  padding: 24px;
+}
+.modal {
+  width: 100%; max-width: 460px;
+  background: var(--surface); border-radius: var(--radius);
+  box-shadow: var(--shadow-md);
+  padding: 22px 22px 18px;
+  display: flex; flex-direction: column; gap: 14px;
+  animation: modal-in 0.14s ease;
+}
+@keyframes modal-in { 0% { transform: translateY(6px); opacity: 0; } 100% { transform: none; opacity: 1; } }
+.modal__head { display: flex; align-items: center; justify-content: space-between; }
+.modal__title { font-size: 17px; font-weight: 700; color: var(--ink-900); margin: 0; }
+.modal__close { border: none; background: transparent; color: var(--slate-400); font-size: 15px; padding: 4px; border-radius: 6px; }
+.modal__close:hover { background: var(--canvas); color: var(--ink-800); }
+.modal__field { display: flex; flex-direction: column; gap: 5px; }
+.modal__label { font-size: 12px; font-weight: 600; color: var(--slate-500); }
+.modal__input {
+  border: 1px solid var(--line); border-radius: var(--radius-sm);
+  padding: 9px 11px; font-family: inherit; font-size: 14px; color: var(--ink-800);
+  outline: none; background: var(--surface);
+}
+.modal__input:focus { border-color: var(--accent); }
+.modal__textarea { resize: vertical; min-height: 84px; line-height: 1.5; }
+.modal__grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.modal__grid .modal__field:first-child { grid-column: 1 / -1; }
+.modal__grid .select { width: 100%; }
+.modal__actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 4px; }
 
 /* Customer / SLA side panel */
 .panel { border: 1px solid var(--line); border-radius: var(--radius); padding: 16px; background: var(--surface); }

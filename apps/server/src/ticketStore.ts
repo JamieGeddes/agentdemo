@@ -5,6 +5,7 @@ import {
   type Customer,
   type Message,
   type Ticket,
+  type TicketCreateInput,
   type TicketListQuery,
   type TicketPatch,
 } from "@agentdemo/shared";
@@ -54,6 +55,41 @@ export class TicketStore {
   get(id: string): Ticket | null {
     const row = this.db.prepare("SELECT * FROM tickets WHERE id = ?").get(id) as TicketRow | undefined;
     return row ? this.hydrate(row) : null;
+  }
+
+  create(input: TicketCreateInput): Ticket {
+    const id = this.nextTicketId();
+    const now = new Date().toISOString();
+    const ticket = {
+      id,
+      subject: input.subject,
+      body: input.body,
+      status: input.status ?? "open",
+      priority: input.priority ?? "normal",
+      customerId: input.customerId,
+      assigneeId: input.assigneeId ?? null,
+      tags: input.tags ?? [],
+      createdAt: now,
+      updatedAt: now,
+    };
+
+    this.db
+      .prepare(
+        "INSERT INTO tickets (id, subject, body, status, priority, customerId, assigneeId, tags, createdAt, updatedAt) VALUES (@id, @subject, @body, @status, @priority, @customerId, @assigneeId, @tags, @createdAt, @updatedAt)",
+      )
+      .run({ ...ticket, tags: JSON.stringify(ticket.tags) });
+
+    return this.get(id)!;
+  }
+
+  /** Next sequential id following the seed convention (T-1001, T-1002, …). */
+  private nextTicketId(): string {
+    const rows = this.db.prepare("SELECT id FROM tickets").all() as Array<{ id: string }>;
+    const max = rows.reduce((acc, { id }) => {
+      const m = id.match(/^T-(\d+)$/);
+      return m ? Math.max(acc, Number(m[1])) : acc;
+    }, 1000);
+    return `T-${max + 1}`;
   }
 
   update(id: string, patch: TicketPatch): Ticket | null {

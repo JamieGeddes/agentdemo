@@ -31,7 +31,7 @@ function Desk() {
   return (
     <div className="app">
       <Rail />
-      <TicketList flashId={flashId} />
+      <TicketList flashId={flashId} onFlash={onFlash} />
       <TicketDetail />
       <CopilotActions onFlash={onFlash} />
     </div>

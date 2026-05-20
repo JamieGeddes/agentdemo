@@ -11,6 +11,7 @@ import { useTickets } from "../state/TicketsProvider.js";
 import {
   KnowledgeCitationCard,
   ReplyApprovalCard,
+  TicketCreateApprovalCard,
   TicketSummaryCard,
   ToolActivityChip,
 } from "../components/cards.js";
@@ -24,8 +25,18 @@ import {
  * Renders nothing — pure wiring, mounted inside <CopilotKitProvider>.
  */
 export function CopilotActions({ onFlash }: { onFlash: (id: string) => void }) {
-  const { tickets, selected, filters, setFilters, selectTicket, patchTicket, sendMessage } =
-    useTickets();
+  const {
+    tickets,
+    customers,
+    selected,
+    filters,
+    setFilters,
+    selectTicket,
+    patchTicket,
+    addTicket,
+    findCustomerByName,
+    sendMessage,
+  } = useTickets();
 
   // ── Share the rep's current view with the agent ──────────────────────────
   useAgentContext({
@@ -41,6 +52,10 @@ export function CopilotActions({ onFlash }: { onFlash: (id: string) => void }) {
   useAgentContext({
     description: "The active inbox filters and the ticket the rep currently has open",
     value: JSON.stringify({ filters, openTicketId: selected?.id ?? null }),
+  });
+  useAgentContext({
+    description: "Customers you can file new tickets for (pass the company name to createTicket)",
+    value: customers.map((c) => ({ company: c.company, plan: c.plan })),
   });
 
   // Backend tool calls (list_tickets, get_ticket, DeepWiki MCP) render as a
@@ -158,7 +173,89 @@ export function CopilotActions({ onFlash }: { onFlash: (id: string) => void }) {
     ),
   });
 
+  // ── Human-in-the-loop: propose a new ticket, wait for the rep's approval ──
+  useHumanInTheLoop({
+    name: "createTicket",
+    description:
+      "Propose a new support ticket for a customer. The rep must approve before it is created. Pass the customer's company name (e.g. \"Globex Corp\").",
+    parameters: z.object({
+      subject: z.string().describe("Short subject line for the ticket"),
+      body: z.string().describe("The issue description / opening details"),
+      customerName: z.string().describe("The customer's company name, e.g. Globex Corp"),
+      priority: z.enum(TICKET_PRIORITIES).optional().describe("Defaults to normal"),
+    }),
+    render: ({ args, status, respond }) => {
+      const name = args.customerName ?? "";
+      const match = findCustomerByName(name);
+      const priority = (args.priority as TicketPriority | undefined) ?? "normal";
+      return (
+        <TicketCreateApproval
+          subject={args.subject ?? ""}
+          body={args.body ?? ""}
+          priority={priority}
+          customerName={name}
+          resolvedCompany={match?.company ?? null}
+          status={status as "inProgress" | "executing" | "complete"}
+          onApprove={async () => {
+            if (!match) {
+              respond?.(`No customer matches "${name}"; nothing was created.`);
+              return null;
+            }
+            const created = await addTicket({
+              subject: args.subject ?? "",
+              body: args.body ?? "",
+              priority,
+              customerId: match.id,
+            });
+            onFlash(created.id);
+            respond?.(`Created ${created.id} for ${match.company}.`);
+            return created.id;
+          }}
+          onCancel={() => respond?.("The rep discarded the new ticket; nothing was created.")}
+        />
+      );
+    },
+  });
+
   return null;
+}
+
+/** Approval card for an agent-proposed new ticket (respond fires once). */
+function TicketCreateApproval(props: {
+  subject: string;
+  body: string;
+  priority: TicketPriority;
+  customerName: string;
+  resolvedCompany: string | null;
+  status: "inProgress" | "executing" | "complete";
+  onApprove: () => Promise<string | null> | string | null;
+  onCancel: () => void;
+}) {
+  const [outcome, setOutcome] = useState<"created" | "cancelled" | null>(null);
+  const [createdId, setCreatedId] = useState<string | null>(null);
+  return (
+    <TicketCreateApprovalCard
+      subject={props.subject}
+      body={props.body}
+      priority={props.priority}
+      customerName={props.customerName}
+      resolvedCompany={props.resolvedCompany}
+      status={props.status}
+      outcome={outcome}
+      createdId={createdId}
+      onApprove={async () => {
+        const id = await props.onApprove();
+        if (id) {
+          setCreatedId(id);
+          setOutcome("created");
+        }
+      }}
+      onCancel={() => {
+        setOutcome("cancelled");
+        props.onCancel();
+      }}
+    />
+  );
 }
 
 /** Approval card that tracks its own decided/outcome state (respond fires once). */

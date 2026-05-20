@@ -1,15 +1,24 @@
+import { useState } from "react";
 import { TICKET_STATUSES, type TicketStatus } from "@agentdemo/shared";
 import { useTickets } from "../state/TicketsProvider.js";
 import { AssigneeChip, PriorityPill, StatusPill, relativeTime } from "./pills.js";
+import { NewTicketModal } from "./NewTicketModal.js";
 
 const STATUS_FILTERS: Array<{ label: string; value: TicketStatus | "all" }> = [
   { label: "All", value: "all" },
   ...TICKET_STATUSES.map((s) => ({ label: s[0].toUpperCase() + s.slice(1), value: s })),
 ];
 
-export function TicketList({ flashId }: { flashId: string | null }) {
+export function TicketList({
+  flashId,
+  onFlash,
+}: {
+  flashId: string | null;
+  onFlash: (id: string) => void;
+}) {
   const { tickets, filters, setFilters, selectedId, selectTicket, customerOf, agentOf, loading } =
     useTickets();
+  const [showNew, setShowNew] = useState(false);
 
   const active = filters.status ?? "all";
   const openCount = tickets.filter((t) => t.status === "open").length;
@@ -17,11 +26,20 @@ export function TicketList({ flashId }: { flashId: string | null }) {
   return (
     <section className="list">
       <div className="list__head">
-        <h1 className="list__title">Inbox</h1>
+        <div className="list__head-row">
+          <h1 className="list__title">Inbox</h1>
+          <button className="btn btn--sm" onClick={() => setShowNew(true)}>
+            ＋ New ticket
+          </button>
+        </div>
         <div className="list__sub">
           {loading ? "Loading…" : `${tickets.length} tickets · ${openCount} open`}
         </div>
       </div>
+
+      {showNew && (
+        <NewTicketModal onClose={() => setShowNew(false)} onCreated={(id) => onFlash(id)} />
+      )}
 
       <div className="filters">
         {STATUS_FILTERS.map((f) => (

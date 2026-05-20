@@ -60,6 +60,29 @@ describe("TicketStore", () => {
     expect(updated?.messages.at(-1)?.body).toBe("Following up on this.");
   });
 
+  it("creates a ticket with the next sequential id and defaults", () => {
+    const customerId = store.listCustomers()[0].id;
+    const created = store.create({ subject: "New issue", body: "Details here", customerId });
+
+    expect(created.id).toMatch(/^T-\d+$/);
+    expect(created.status).toBe("open");
+    expect(created.priority).toBe("normal");
+    expect(created.assigneeId).toBeNull();
+    expect(created.tags).toEqual([]);
+    expect(created.messages).toEqual([]);
+    expect(created.createdAt).toBe(created.updatedAt);
+
+    // persisted and retrievable
+    expect(store.get(created.id)?.subject).toBe("New issue");
+    expect(store.list().some((t) => t.id === created.id)).toBe(true);
+
+    // next id keeps incrementing
+    const second = store.create({ subject: "Another", body: "More", customerId });
+    const n1 = Number(created.id.slice(2));
+    const n2 = Number(second.id.slice(2));
+    expect(n2).toBe(n1 + 1);
+  });
+
   it("returns null for unknown tickets", () => {
     expect(store.get("nope")).toBeNull();
     expect(store.update("nope", { status: "closed" })).toBeNull();

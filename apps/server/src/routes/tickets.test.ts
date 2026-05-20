@@ -70,6 +70,46 @@ describe("ticket routes", () => {
     expect(bad.statusCode).toBe(400);
   });
 
+  it("POST /api/tickets creates a ticket and validates", async () => {
+    const customers = await app.inject({ method: "GET", url: "/api/customers" });
+    const customerId = customers.json()[0].id;
+
+    const ok = await app.inject({
+      method: "POST",
+      url: "/api/tickets",
+      payload: { subject: "Login failures", body: "Users cannot log in", customerId, priority: "high" },
+    });
+    expect(ok.statusCode).toBe(201);
+    expect(ok.json().id).toMatch(/^T-\d+$/);
+    expect(ok.json().priority).toBe("high");
+    expect(ok.json().status).toBe("open");
+
+    // it is now retrievable via the list/get endpoints
+    const fetched = await app.inject({ method: "GET", url: `/api/tickets/${ok.json().id}` });
+    expect(fetched.statusCode).toBe(200);
+
+    const missingSubject = await app.inject({
+      method: "POST",
+      url: "/api/tickets",
+      payload: { body: "no subject", customerId },
+    });
+    expect(missingSubject.statusCode).toBe(400);
+
+    const badCustomer = await app.inject({
+      method: "POST",
+      url: "/api/tickets",
+      payload: { subject: "x", body: "y", customerId: "nope" },
+    });
+    expect(badCustomer.statusCode).toBe(400);
+
+    const badPriority = await app.inject({
+      method: "POST",
+      url: "/api/tickets",
+      payload: { subject: "x", body: "y", customerId, priority: "banana" },
+    });
+    expect(badPriority.statusCode).toBe(400);
+  });
+
   it("exposes customers and agents", async () => {
     const customers = await app.inject({ method: "GET", url: "/api/customers" });
     const agents = await app.inject({ method: "GET", url: "/api/agents" });

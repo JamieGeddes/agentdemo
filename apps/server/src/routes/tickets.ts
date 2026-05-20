@@ -2,6 +2,7 @@ import type { FastifyInstance, FastifyPluginOptions } from "fastify";
 import {
   isTicketPriority,
   isTicketStatus,
+  type TicketCreateInput,
   type TicketListQuery,
   type TicketPatch,
 } from "@agentdemo/shared";
@@ -34,6 +35,40 @@ export async function ticketRoutes(app: FastifyInstance, opts: RouteOpts): Promi
     const ticket = store.get(id);
     if (!ticket) return reply.code(404).send({ error: "ticket not found" });
     return ticket;
+  });
+
+  app.post("/api/tickets", async (req, reply) => {
+    const body = (req.body ?? {}) as Partial<TicketCreateInput>;
+
+    if (!body.subject || typeof body.subject !== "string") {
+      return reply.code(400).send({ error: "subject is required" });
+    }
+    if (!body.body || typeof body.body !== "string") {
+      return reply.code(400).send({ error: "body is required" });
+    }
+    if (!body.customerId || !store.listCustomers().some((c) => c.id === body.customerId)) {
+      return reply.code(400).send({ error: "invalid customerId" });
+    }
+    if (body.assigneeId != null && !store.listAgents().some((a) => a.id === body.assigneeId)) {
+      return reply.code(400).send({ error: "invalid assigneeId" });
+    }
+    if (body.status !== undefined && !isTicketStatus(body.status)) {
+      return reply.code(400).send({ error: "invalid status" });
+    }
+    if (body.priority !== undefined && !isTicketPriority(body.priority)) {
+      return reply.code(400).send({ error: "invalid priority" });
+    }
+
+    const created = store.create({
+      subject: body.subject,
+      body: body.body,
+      customerId: body.customerId,
+      status: body.status,
+      priority: body.priority,
+      assigneeId: body.assigneeId ?? null,
+      tags: Array.isArray(body.tags) ? body.tags : undefined,
+    });
+    return reply.code(201).send(created);
   });
 
   app.patch("/api/tickets/:id", async (req, reply) => {
