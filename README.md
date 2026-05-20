@@ -92,24 +92,32 @@ npm run typecheck
 
 ## How the pieces connect
 
-- **`apps/server/src/copilot.ts`** mounts the CopilotKit runtime on Fastify and
-  proxies AG-UI traffic to the LangGraph agent via `LangGraphAgent({ deploymentUrl, graphId })`.
-  Fastify already JSON-parses the body, so it hands the handler a reconstructed
-  Web `Request` and streams the `Response` back (keeps AG-UI streaming intact).
-- **`apps/agent/src/graph.ts`** binds three tool sets to Gemini: backend read
-  tools, DeepWiki MCP tools, and the CopilotKit **frontend actions** injected at
-  runtime. Backend tool calls run in the graph (and update shared state); a
-  frontend-action call ends the run so the **browser** executes it against the
-  live UI.
-- **`apps/web/src/copilot/actions.tsx`** registers the readable state, frontend
-  actions, generative-UI cards, the HITL approval flow, and the shared-state HUD.
+- **`apps/server/src/copilot.ts`** mounts the CopilotKit **v2 (AG-UI)** runtime on
+  Fastify via `createCopilotRuntimeHandler` and proxies to the LangGraph agent via
+  `LangGraphAgent({ deploymentUrl, graphId })`. Fastify already JSON-parses the
+  body, so it hands the fetch handler a reconstructed Web `Request` and streams
+  the `Response` back (keeps AG-UI SSE streaming intact). Uses **single-route mode**
+  (see note below).
+- **`apps/agent/src/graph.ts`** is LangChain's prebuilt agent (`createAgent`) with
+  `copilotkitMiddleware`, driven by Gemini Flash. It binds the backend tools
+  (ticket reads + DeepWiki MCP); the CopilotKit **frontend tools** are injected by
+  the middleware and routed to the browser to execute.
+- **`apps/web/src/copilot/actions.tsx`** registers the frontend tools (UI control),
+  the generative-UI cards, and the human-in-the-loop reply approval.
 
 ## Notes & limitations
 
-- Writes the agent makes to tickets go through **frontend actions** (so the rep
-  sees them happen in the UI) and persist via the REST API to SQLite.
+- **Single-route mode is required.** The server runs the v2 runtime with
+  `mode: "single-route"` and the client sets `useSingleEndpoint`. In the default
+  multi-route mode, a frontend-tool call's two-run pause/resume clears the chat
+  transcript in the v2 client; single-route mode renders it correctly. Both must
+  match.
+- The agent's UI changes go through **frontend tools** (so the rep sees them in the
+  UI) and persist via the REST API to SQLite.
 - The DeepWiki MCP connection degrades gracefully: if it's unreachable the agent
   still works on local tickets.
+- `useAgentContext` (sharing the on-screen state with the agent) is currently
+  disabled — under `createAgent` it injects a misplaced system message that errors
+  the run. The agent reads ticket data via its tools instead.
 - This is a PoC: in-process dev servers, seeded demo data, and a single graph.
   Production would use a deployed LangGraph runtime, auth, and real persistence.
-```

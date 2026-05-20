@@ -32,7 +32,7 @@ export function registerCopilotRuntime(app: FastifyInstance): void {
   const handler = createCopilotRuntimeHandler({
     runtime,
     basePath: ENDPOINT,
-    mode: "multi-route",
+    mode: "single-route",
     cors: true,
   });
 

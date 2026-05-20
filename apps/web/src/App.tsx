@@ -42,6 +42,7 @@ export default function App() {
   return (
     <CopilotKitProvider
       runtimeUrl="/api/copilotkit"
+      useSingleEndpoint
       showDevConsole={false}
       renderToolCalls={[WildcardToolCallRender]}
     >
