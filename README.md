@@ -1,4 +1,4 @@
-# Helm — Agentic Support Desk (PoC)
+# Vela — Agentic Support Desk (PoC)
 
 A proof of concept showing how an **agentic layer** can be grafted onto an
 existing B2B support/ticketing app *as seamlessly as possible*. The agent
