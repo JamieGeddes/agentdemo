@@ -1,0 +1,25 @@
+node_modules/
+dist/
+build/
+.env
+.env.local
+*.log
+npm-debug.log*
+
+# SQLite data
+apps/server/data/*.db
+apps/server/data/*.db-*
+
+# Build/test artifacts
+coverage/
+.vitest/
+*.tsbuildinfo
+
+# LangGraph dev server state
+.langgraph_api/
+apps/agent/.langgraph_api/
+
+# Editor / OS
+.DS_Store
+.idea/
+.vscode/
