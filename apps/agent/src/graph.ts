@@ -4,6 +4,7 @@ import type { BaseChatModel } from "@langchain/core/language_models/chat_models"
 import { SystemMessage } from "@langchain/core/messages";
 import type { StructuredToolInterface } from "@langchain/core/tools";
 import { ChatGoogleGenerativeAI } from "@langchain/google-genai";
+import { ChatVertexAI } from "@langchain/google-vertexai";
 import { env } from "./env.js";
 import { SYSTEM_PROMPT } from "./prompt.js";
 import { createServerTools } from "./tools/server.js";
@@ -42,12 +43,33 @@ const mergeSystemMessages = createMiddleware({
   },
 });
 
-function makeModel(): BaseChatModel {
-  return new ChatGoogleGenerativeAI({
-    model: env.geminiModel,
-    apiKey: env.googleApiKey,
-    temperature: 0,
-  });
+/**
+ * Build the Gemini chat model for the configured backend. Both paths return the
+ * same `BaseChatModel` interface, so the graph downstream is backend-agnostic.
+ * - "gemini-api": Google AI Studio key (`GOOGLE_API_KEY`).
+ * - "vertex": Vertex AI via Application Default Credentials (no key in env;
+ *   `gcloud auth application-default login` locally, or the GCP service account).
+ */
+export function makeModel(backend: string = env.llmBackend): BaseChatModel {
+  switch (backend) {
+    case "gemini-api":
+      return new ChatGoogleGenerativeAI({
+        model: env.geminiModel,
+        apiKey: env.googleApiKey,
+        temperature: 0,
+      });
+    case "vertex":
+      return new ChatVertexAI({
+        model: env.geminiModel,
+        temperature: 0,
+        location: env.vertexLocation,
+        ...(env.vertexProject ? { authOptions: { projectId: env.vertexProject } } : {}),
+      });
+    default:
+      throw new Error(
+        `Unknown LLM_BACKEND "${backend}". Valid values: "gemini-api", "vertex".`,
+      );
+  }
 }
 
 export interface BuildAgentOptions {

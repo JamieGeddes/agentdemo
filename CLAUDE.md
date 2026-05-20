@@ -109,6 +109,13 @@ no running services.
 ## Config / env
 
 All env is read from the **repo-root `.env`** (each app's `src/env.ts` resolves up
-to it; `langgraph.json` also points there). Keys: `GOOGLE_API_KEY`,
+to it; `langgraph.json` also points there). Keys: `LLM_BACKEND`, `GOOGLE_API_KEY`,
 `GEMINI_MODEL` (default `gemini-2.5-flash`), `SERVER_PORT`/`AGENT_PORT`/`WEB_PORT`,
 `AGENT_URL`, `AGENT_GRAPH_ID`, `SERVER_API_URL`, `DEEPWIKI_MCP_URL`.
+
+`LLM_BACKEND` selects the Gemini backend in `makeModel()` (`apps/agent/src/graph.ts`):
+`gemini-api` (default — uses `GOOGLE_API_KEY` via `ChatGoogleGenerativeAI`) or
+`vertex` (Vertex AI via `ChatVertexAI`). Vertex authenticates with **Application
+Default Credentials** — `gcloud auth application-default login` locally, or the
+service account on GCP; no key in `.env`. Vertex-only vars: `GOOGLE_CLOUD_PROJECT`
+(defaults to the ADC project), `GOOGLE_CLOUD_LOCATION` (default `europe-west1`).
