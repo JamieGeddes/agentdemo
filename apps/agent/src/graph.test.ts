@@ -1,8 +1,9 @@
 import { describe, expect, it } from "vitest";
 import { ChatGoogleGenerativeAI } from "@langchain/google-genai";
+import { ChatVertexAI } from "@langchain/google-vertexai";
 import { tool } from "@langchain/core/tools";
 import { z } from "zod";
-import { buildAgent } from "./graph.js";
+import { buildAgent, makeModel } from "./graph.js";
 
 const fakeGetTicket = tool(async ({ id }) => JSON.stringify({ id }), {
   name: "get_ticket",
@@ -19,5 +20,20 @@ describe("support agent", () => {
     expect(agent).toBeDefined();
     expect(typeof agent.invoke).toBe("function");
     expect(typeof agent.stream).toBe("function");
+  });
+});
+
+describe("makeModel backend selection", () => {
+  // Construction makes no network/auth call, so no key or ADC is needed here.
+  it("builds an API-key model for the gemini-api backend", () => {
+    expect(makeModel("gemini-api")).toBeInstanceOf(ChatGoogleGenerativeAI);
+  });
+
+  it("builds a Vertex AI model for the vertex backend", () => {
+    expect(makeModel("vertex")).toBeInstanceOf(ChatVertexAI);
+  });
+
+  it("throws on an unknown backend", () => {
+    expect(() => makeModel("bogus")).toThrow(/Unknown LLM_BACKEND/);
   });
 });
