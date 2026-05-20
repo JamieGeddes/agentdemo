@@ -1,12 +1,46 @@
-import { createAgent } from "langchain";
+import { createAgent, createMiddleware } from "langchain";
 import { copilotkitMiddleware } from "@copilotkit/sdk-js/langgraph";
 import type { BaseChatModel } from "@langchain/core/language_models/chat_models";
+import { SystemMessage } from "@langchain/core/messages";
 import type { StructuredToolInterface } from "@langchain/core/tools";
 import { ChatGoogleGenerativeAI } from "@langchain/google-genai";
 import { env } from "./env.js";
 import { SYSTEM_PROMPT } from "./prompt.js";
 import { createServerTools } from "./tools/server.js";
 import { loadDeepwikiTools } from "./tools/mcp.js";
+
+/**
+ * Gemini accepts exactly one system message, and it must be first. But
+ * copilotkitMiddleware injects the app context (from `useAgentContext`) as an
+ * additional system message, which — alongside createAgent's systemPrompt —
+ * makes two. This middleware merges every system message into a single leading
+ * one just before the model call, so the context works without erroring.
+ */
+const mergeSystemMessages = createMiddleware({
+  name: "mergeSystemMessages",
+  wrapModelCall: async (request, handler) => {
+    const parts: string[] = [];
+    const base = request.systemMessage;
+    const baseText = typeof base?.content === "string" ? base.content : "";
+    if (baseText.trim()) parts.push(baseText);
+
+    const rest = [];
+    for (const m of request.messages) {
+      if (m.getType() === "system") {
+        const c = typeof m.content === "string" ? m.content : JSON.stringify(m.content);
+        if (c.trim()) parts.push(c);
+      } else {
+        rest.push(m);
+      }
+    }
+
+    return handler({
+      ...request,
+      systemMessage: new SystemMessage(parts.join("\n\n")),
+      messages: rest,
+    });
+  },
+});
 
 function makeModel(): BaseChatModel {
   return new ChatGoogleGenerativeAI({
@@ -38,7 +72,9 @@ export function buildAgent(opts: BuildAgentOptions = {}) {
   return createAgent({
     model,
     tools: [...serverTools, ...mcpTools],
-    middleware: [copilotkitMiddleware],
+    // mergeSystemMessages runs after copilotkitMiddleware so it sees (and folds
+    // in) the injected app-context system message.
+    middleware: [copilotkitMiddleware, mergeSystemMessages],
     systemPrompt: SYSTEM_PROMPT,
   });
 }

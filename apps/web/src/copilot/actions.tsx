@@ -1,13 +1,19 @@
 import { useState } from "react";
 import { z } from "zod";
 import {
+  useAgentContext,
   useDefaultRenderTool,
   useFrontendTool,
   useHumanInTheLoop,
 } from "@copilotkit/react-core/v2";
 import { TICKET_PRIORITIES, TICKET_STATUSES, type TicketPriority } from "@agentdemo/shared";
 import { useTickets } from "../state/TicketsProvider.js";
-import { KnowledgeCitationCard, ReplyApprovalCard, TicketSummaryCard } from "../components/cards.js";
+import {
+  KnowledgeCitationCard,
+  ReplyApprovalCard,
+  TicketSummaryCard,
+  ToolActivityChip,
+} from "../components/cards.js";
 
 /**
  * Wires the support-desk UI to the agent (CopilotKit v2 / AG-UI):
@@ -18,11 +24,32 @@ import { KnowledgeCitationCard, ReplyApprovalCard, TicketSummaryCard } from "../
  * Renders nothing — pure wiring, mounted inside <CopilotKitProvider>.
  */
 export function CopilotActions({ onFlash }: { onFlash: (id: string) => void }) {
-  const { setFilters, selectTicket, patchTicket, sendMessage } = useTickets();
+  const { tickets, selected, filters, setFilters, selectTicket, patchTicket, sendMessage } =
+    useTickets();
 
-  // Fallback renderer so the agent's backend tool calls (list_tickets, MCP, …)
-  // render as default cards — otherwise the v2 chat won't render the turn.
-  useDefaultRenderTool();
+  // ── Share the rep's current view with the agent ──────────────────────────
+  useAgentContext({
+    description: "The tickets currently visible in the rep's inbox (filtered view)",
+    value: tickets.map((t) => ({
+      id: t.id,
+      subject: t.subject,
+      status: t.status,
+      priority: t.priority,
+      assigneeId: t.assigneeId ?? "unassigned",
+    })),
+  });
+  useAgentContext({
+    description: "The active inbox filters and the ticket the rep currently has open",
+    value: JSON.stringify({ filters, openTicketId: selected?.id ?? null }),
+  });
+
+  // Backend tool calls (list_tickets, get_ticket, DeepWiki MCP) render as a
+  // compact activity chip instead of dumping the raw tool result into the chat.
+  useDefaultRenderTool({
+    render: ({ name, status }) => (
+      <ToolActivityChip name={name} status={status as "inProgress" | "executing" | "complete"} />
+    ),
+  });
 
   // ── Frontend tools: the agent drives the live UI ─────────────────────────
   useFrontendTool({

@@ -49,6 +49,27 @@ export function KnowledgeCitationCard(props: { question: string; answer: string;
   );
 }
 
+/** Compact chip shown for the agent's backend tool calls (instead of raw JSON). */
+export function ToolActivityChip(props: { name: string; status: "inProgress" | "executing" | "complete" }) {
+  const labels: Record<string, string> = {
+    list_tickets: "Searching tickets",
+    get_ticket: "Reading the ticket",
+    ask_question: "Searching the knowledge base",
+    read_wiki_structure: "Browsing the knowledge base",
+    read_wiki_contents: "Reading the knowledge base",
+  };
+  const isMcp = /wiki|ask_question/.test(props.name);
+  const label = labels[props.name] ?? props.name;
+  const done = props.status === "complete";
+  return (
+    <div className="toolchip">
+      <span className="toolchip__icon">{isMcp ? "📖" : "🔧"}</span>
+      <span className="toolchip__label">{label}</span>
+      <span className={`toolchip__state ${done ? "toolchip__state--done" : ""}`}>{done ? "✓" : "…"}</span>
+    </div>
+  );
+}
+
 /** Human-in-the-loop reply approval card (rendered via renderAndWaitForResponse). */
 export function ReplyApprovalCard(props: {
   ticketId: string;

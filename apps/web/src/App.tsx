@@ -1,5 +1,5 @@
 import { useCallback, useState } from "react";
-import { CopilotKitProvider, CopilotSidebar, WildcardToolCallRender } from "@copilotkit/react-core/v2";
+import { CopilotKitProvider, CopilotSidebar } from "@copilotkit/react-core/v2";
 import { TicketsProvider } from "./state/TicketsProvider.js";
 import { CopilotActions } from "./copilot/actions.js";
 import { TicketList } from "./components/TicketList.js";
@@ -40,12 +40,7 @@ function Desk() {
 
 export default function App() {
   return (
-    <CopilotKitProvider
-      runtimeUrl="/api/copilotkit"
-      useSingleEndpoint
-      showDevConsole={false}
-      renderToolCalls={[WildcardToolCallRender]}
-    >
+    <CopilotKitProvider runtimeUrl="/api/copilotkit" useSingleEndpoint showDevConsole={false}>
       <TicketsProvider>
         <Desk />
         <CopilotSidebar

@@ -101,9 +101,13 @@ npm run typecheck
 - **`apps/agent/src/graph.ts`** is LangChain's prebuilt agent (`createAgent`) with
   `copilotkitMiddleware`, driven by Gemini Flash. It binds the backend tools
   (ticket reads + DeepWiki MCP); the CopilotKit **frontend tools** are injected by
-  the middleware and routed to the browser to execute.
-- **`apps/web/src/copilot/actions.tsx`** registers the frontend tools (UI control),
-  the generative-UI cards, and the human-in-the-loop reply approval.
+  the middleware and routed to the browser to execute. A small `mergeSystemMessages`
+  middleware folds the agent context + system prompt into a single system message
+  (Gemini requires exactly one, first).
+- **`apps/web/src/copilot/actions.tsx`** registers the readable context
+  (`useAgentContext`), the frontend tools (UI control), the generative-UI cards,
+  the human-in-the-loop reply approval, and a compact activity chip for backend
+  tool calls.
 
 ## Notes & limitations
 
@@ -116,8 +120,5 @@ npm run typecheck
   UI) and persist via the REST API to SQLite.
 - The DeepWiki MCP connection degrades gracefully: if it's unreachable the agent
   still works on local tickets.
-- `useAgentContext` (sharing the on-screen state with the agent) is currently
-  disabled — under `createAgent` it injects a misplaced system message that errors
-  the run. The agent reads ticket data via its tools instead.
 - This is a PoC: in-process dev servers, seeded demo data, and a single graph.
   Production would use a deployed LangGraph runtime, auth, and real persistence.
