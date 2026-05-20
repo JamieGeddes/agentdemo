@@ -1,6 +1,6 @@
 ## What this is
 
-"Helm" — a PoC showing an **agentic layer** ("Aria") grafted into an existing B2B
+"Vela" — a PoC showing an **agentic layer** ("Aria") grafted into an existing B2B
 support/ticketing app. The agent lives in a chat sidebar inside the real product
 and can drive the UI, render rich cards in chat, pause for human approval, and
 pull in external knowledge. It is a demo: in-process dev servers, seeded data, a
