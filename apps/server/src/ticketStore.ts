@@ -3,6 +3,7 @@ import {
   priorityRank,
   type Agent,
   type Customer,
+  type CustomerPatch,
   type Message,
   type Ticket,
   type TicketCreateInput,
@@ -35,6 +36,7 @@ export class TicketStore {
     if (query.status) tickets = tickets.filter((t) => t.status === query.status);
     if (query.priority) tickets = tickets.filter((t) => t.priority === query.priority);
     if (query.assigneeId) tickets = tickets.filter((t) => t.assigneeId === query.assigneeId);
+    if (query.customerId) tickets = tickets.filter((t) => t.customerId === query.customerId);
     if (query.search) {
       const q = query.search.toLowerCase();
       tickets = tickets.filter(
@@ -140,6 +142,22 @@ export class TicketStore {
 
   listCustomers(): Customer[] {
     return this.db.prepare("SELECT * FROM customers").all() as Customer[];
+  }
+
+  getCustomer(id: string): Customer | null {
+    const row = this.db.prepare("SELECT * FROM customers WHERE id = ?").get(id) as
+      | Customer
+      | undefined;
+    return row ?? null;
+  }
+
+  updateCustomer(id: string, patch: CustomerPatch): Customer | null {
+    const existing = this.getCustomer(id);
+    if (!existing) return null;
+
+    const plan = patch.plan ?? existing.plan;
+    this.db.prepare("UPDATE customers SET plan=? WHERE id=?").run(plan, id);
+    return this.getCustomer(id);
   }
 
   listAgents(): Agent[] {

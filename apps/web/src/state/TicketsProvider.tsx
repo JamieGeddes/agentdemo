@@ -11,12 +11,16 @@ import {
 import type {
   Agent,
   Customer,
+  CustomerPatch,
   Ticket,
   TicketCreateInput,
   TicketListQuery,
   TicketPatch,
 } from "@agentdemo/shared";
 import { api } from "../api.js";
+
+/** Which top-level page the rep (or the agent) is currently on. */
+export type View = "inbox" | "customers";
 
 interface TicketsContextValue {
   tickets: Ticket[];
@@ -26,6 +30,12 @@ interface TicketsContextValue {
   selectedId: string | null;
   selected: Ticket | null;
   loading: boolean;
+  view: View;
+  selectedCustomerId: string | null;
+  selectedCustomer: Customer | null;
+  setView: (next: View) => void;
+  selectCustomer: (id: string | null) => void;
+  patchCustomer: (id: string, patch: CustomerPatch) => Promise<void>;
   setFilters: (next: TicketListQuery) => void;
   selectTicket: (id: string | null) => void;
   patchTicket: (id: string, patch: TicketPatch) => Promise<void>;
@@ -47,6 +57,8 @@ export function TicketsProvider({ children }: { children: ReactNode }) {
   const [filters, setFilters] = useState<TicketListQuery>({ sort: "priority" });
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [view, setView] = useState<View>("inbox");
+  const [selectedCustomerId, setSelectedCustomerId] = useState<string | null>(null);
 
   // Mirror customers into a ref so stable callbacks (e.g. the agent's createTicket
   // render closure, captured once by CopilotKit) can read the latest list.
@@ -86,6 +98,12 @@ export function TicketsProvider({ children }: { children: ReactNode }) {
   }, [loadRefData]);
 
   const selectTicket = useCallback((id: string | null) => setSelectedId(id), []);
+  const selectCustomer = useCallback((id: string | null) => setSelectedCustomerId(id), []);
+
+  const patchCustomer = useCallback(async (id: string, patch: CustomerPatch) => {
+    const updated = await api.patchCustomer(id, patch);
+    setCustomers((prev) => prev.map((c) => (c.id === id ? updated : c)));
+  }, []);
 
   const patchTicket = useCallback(
     async (id: string, patch: TicketPatch) => {
@@ -134,6 +152,10 @@ export function TicketsProvider({ children }: { children: ReactNode }) {
     () => tickets.find((t) => t.id === selectedId) ?? null,
     [tickets, selectedId],
   );
+  const selectedCustomer = useMemo(
+    () => customers.find((c) => c.id === selectedCustomerId) ?? null,
+    [customers, selectedCustomerId],
+  );
 
   const value: TicketsContextValue = {
     tickets,
@@ -143,6 +165,12 @@ export function TicketsProvider({ children }: { children: ReactNode }) {
     selectedId,
     selected,
     loading,
+    view,
+    selectedCustomerId,
+    selectedCustomer,
+    setView,
+    selectCustomer,
+    patchCustomer,
     setFilters,
     selectTicket,
     patchTicket,

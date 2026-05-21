@@ -116,4 +116,37 @@ describe("ticket routes", () => {
     expect(customers.json().length).toBeGreaterThan(0);
     expect(agents.json().length).toBeGreaterThan(0);
   });
+
+  it("GET /api/tickets?customerId filters by customer", async () => {
+    const customerId = (await app.inject({ method: "GET", url: "/api/customers" })).json()[0].id;
+    const res = await app.inject({ method: "GET", url: `/api/tickets?customerId=${customerId}` });
+    expect(res.statusCode).toBe(200);
+    expect(res.json().every((t: { customerId: string }) => t.customerId === customerId)).toBe(true);
+  });
+
+  it("PATCH /api/customers/:id updates the plan and validates", async () => {
+    const customerId = (await app.inject({ method: "GET", url: "/api/customers" })).json()[0].id;
+
+    const ok = await app.inject({
+      method: "PATCH",
+      url: `/api/customers/${customerId}`,
+      payload: { plan: "enterprise" },
+    });
+    expect(ok.statusCode).toBe(200);
+    expect(ok.json().plan).toBe("enterprise");
+
+    const bad = await app.inject({
+      method: "PATCH",
+      url: `/api/customers/${customerId}`,
+      payload: { plan: "platinum" },
+    });
+    expect(bad.statusCode).toBe(400);
+
+    const missing = await app.inject({
+      method: "PATCH",
+      url: "/api/customers/nope",
+      payload: { plan: "pro" },
+    });
+    expect(missing.statusCode).toBe(404);
+  });
 });

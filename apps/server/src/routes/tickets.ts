@@ -1,7 +1,9 @@
 import type { FastifyInstance, FastifyPluginOptions } from "fastify";
 import {
+  isCustomerPlan,
   isTicketPriority,
   isTicketStatus,
+  type CustomerPatch,
   type TicketCreateInput,
   type TicketListQuery,
   type TicketPatch,
@@ -22,6 +24,7 @@ export async function ticketRoutes(app: FastifyInstance, opts: RouteOpts): Promi
       status: isTicketStatus(q.status) ? q.status : undefined,
       priority: isTicketPriority(q.priority) ? q.priority : undefined,
       assigneeId: q.assigneeId || undefined,
+      customerId: q.customerId || undefined,
       search: q.search || undefined,
       sort: (["newest", "oldest", "priority"] as const).includes(q.sort as never)
         ? (q.sort as TicketListQuery["sort"])
@@ -107,4 +110,17 @@ export async function ticketRoutes(app: FastifyInstance, opts: RouteOpts): Promi
 
   app.get("/api/customers", async () => store.listCustomers());
   app.get("/api/agents", async () => store.listAgents());
+
+  app.patch("/api/customers/:id", async (req, reply) => {
+    const { id } = req.params as { id: string };
+    const body = (req.body ?? {}) as CustomerPatch;
+
+    if (body.plan !== undefined && !isCustomerPlan(body.plan)) {
+      return reply.code(400).send({ error: "invalid plan" });
+    }
+
+    const updated = store.updateCustomer(id, body);
+    if (!updated) return reply.code(404).send({ error: "customer not found" });
+    return updated;
+  });
 }

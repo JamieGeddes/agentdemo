@@ -1,6 +1,7 @@
 import type {
   Agent,
   Customer,
+  CustomerPatch,
   Ticket,
   TicketCreateInput,
   TicketListQuery,
@@ -52,4 +53,11 @@ export const api = {
 
   listCustomers: () => fetch("/api/customers").then(json<Customer[]>),
   listAgents: () => fetch("/api/agents").then(json<Agent[]>),
+
+  patchCustomer: (id: string, patch: CustomerPatch) =>
+    fetch(`/api/customers/${id}`, {
+      method: "PATCH",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(patch),
+    }).then(json<Customer>),
 };

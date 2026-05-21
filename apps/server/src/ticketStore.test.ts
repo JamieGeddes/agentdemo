@@ -88,4 +88,23 @@ describe("TicketStore", () => {
     expect(store.update("nope", { status: "closed" })).toBeNull();
     expect(store.addMessage("nope", { author: "agent", authorName: "x", body: "y" })).toBeNull();
   });
+
+  it("filters tickets by customerId", () => {
+    const customerId = store.list()[0].customerId;
+    const results = store.list({ customerId });
+    expect(results.length).toBeGreaterThan(0);
+    expect(results.every((t) => t.customerId === customerId)).toBe(true);
+  });
+
+  it("updates a customer's plan", () => {
+    const customer = store.listCustomers()[0];
+    const updated = store.updateCustomer(customer.id, { plan: "enterprise" });
+    expect(updated?.plan).toBe("enterprise");
+    // persisted
+    expect(store.getCustomer(customer.id)?.plan).toBe("enterprise");
+  });
+
+  it("returns null updating an unknown customer", () => {
+    expect(store.updateCustomer("nope", { plan: "pro" })).toBeNull();
+  });
 });

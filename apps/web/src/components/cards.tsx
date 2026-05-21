@@ -1,5 +1,5 @@
-import type { TicketPriority } from "@agentdemo/shared";
-import { PriorityPill } from "./pills.js";
+import type { CustomerPlan, TicketPriority } from "@agentdemo/shared";
+import { PlanBadge, PriorityPill } from "./pills.js";
 
 /** Rich ticket summary card the agent renders in-chat (generative UI). */
 export function TicketSummaryCard(props: {
@@ -35,6 +35,82 @@ export function TicketSummaryCard(props: {
   );
 }
 
+/** Account-health summary card the agent renders in-chat for a customer. */
+export function CustomerSummaryCard(props: {
+  company: string;
+  plan?: CustomerPlan;
+  slaTier?: string;
+  openTickets?: number;
+  summary: string;
+  highlights?: string[];
+}) {
+  return (
+    <div className="gcard">
+      <div className="gcard__label">◍ Account · {props.company}</div>
+      <p className="gcard__text">{props.summary}</p>
+      {props.highlights && props.highlights.length > 0 && (
+        <ul className="gcard__list">
+          {props.highlights.map((h, i) => (
+            <li key={i}>{h}</li>
+          ))}
+        </ul>
+      )}
+      <div className="gcard__row">
+        {props.plan && <PlanBadge plan={props.plan} />}
+        {props.slaTier && (
+          <span style={{ fontSize: 12, color: "var(--slate-500)" }}>· SLA: {props.slaTier}</span>
+        )}
+        {props.openTickets != null && (
+          <span style={{ fontSize: 12, color: "var(--slate-500)" }}>
+            · {props.openTickets} open tickets
+          </span>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/** Human-in-the-loop approval card for an agent-proposed customer plan change. */
+export function CustomerPlanApprovalCard(props: {
+  company: string;
+  currentPlan: CustomerPlan | null;
+  nextPlan: CustomerPlan;
+  status: "executing" | "complete" | "inProgress";
+  onApprove: () => void;
+  onCancel: () => void;
+  outcome?: "changed" | "cancelled" | null;
+}) {
+  const decided = props.outcome != null || props.status === "complete";
+  const resolved = props.currentPlan != null;
+  return (
+    <div className="gcard approve">
+      <div className="gcard__label">◍ Plan change · {props.company}</div>
+      <div className="gcard__row">
+        {props.currentPlan && <PlanBadge plan={props.currentPlan} />}
+        <span style={{ fontSize: 12, color: "var(--slate-500)" }}>→</span>
+        <PlanBadge plan={props.nextPlan} />
+        {!resolved && (
+          <span style={{ fontSize: 12, color: "var(--red)" }}>· No matching customer</span>
+        )}
+      </div>
+      {!decided ? (
+        <div className="approve__actions">
+          <button className="btn" onClick={props.onApprove} disabled={!resolved}>
+            Approve &amp; apply
+          </button>
+          <button className="btn btn--danger" onClick={props.onCancel}>Discard</button>
+        </div>
+      ) : (
+        <div
+          className={`approve__status ${props.outcome === "changed" ? "approve__status--sent" : "approve__status--cancelled"}`}
+        >
+          {props.outcome === "changed" ? `✓ ${props.company} is now ${props.nextPlan}` : "No change made"}
+        </div>
+      )}
+    </div>
+  );
+}
+
 /** Knowledge-base answer card with a source citation (from the DeepWiki MCP server). */
 export function KnowledgeCitationCard(props: { question: string; answer: string; repo?: string }) {
   return (
@@ -54,6 +130,7 @@ export function ToolActivityChip(props: { name: string; status: "inProgress" | "
   const labels: Record<string, string> = {
     list_tickets: "Searching tickets",
     get_ticket: "Reading the ticket",
+    list_customers: "Looking up customers",
     ask_question: "Searching the knowledge base",
     read_wiki_structure: "Browsing the knowledge base",
     read_wiki_contents: "Reading the knowledge base",

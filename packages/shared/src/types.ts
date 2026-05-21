@@ -67,6 +67,11 @@ export interface TicketPatch {
   tags?: string[];
 }
 
+/** Fields a client (or the AI agent) may patch on a customer. */
+export interface CustomerPatch {
+  plan?: CustomerPlan;
+}
+
 /** Fields needed to create a new ticket; the rest (id/timestamps/messages) are generated. */
 export interface TicketCreateInput {
   subject: string;
@@ -83,6 +88,7 @@ export interface TicketListQuery {
   status?: TicketStatus;
   priority?: TicketPriority;
   assigneeId?: string;
+  customerId?: string;
   /** Free-text search across subject/body. */
   search?: string;
   sort?: "newest" | "oldest" | "priority";
