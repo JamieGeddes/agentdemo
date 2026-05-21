@@ -46,4 +46,22 @@ describe("server tools", () => {
     const out = await getTicket.invoke({ id: "nope" });
     expect(out).toMatch(/no ticket found/i);
   });
+
+  it("list_customers hits /api/customers and returns a compact projection", async () => {
+    const fetchMock = mockFetch([
+      { id: "c1", company: "Acme Robotics", plan: "enterprise", slaTier: "1h", contactName: "Dana", email: "dana@acme.test" },
+    ]);
+    vi.stubGlobal("fetch", fetchMock);
+
+    const [, , listCustomers] = createServerTools(API);
+    const out = await listCustomers.invoke({});
+
+    const url = (fetchMock as unknown as ReturnType<typeof vi.fn>).mock.calls[0][0] as string;
+    expect(url).toContain("/api/customers");
+    const parsed = JSON.parse(out as string);
+    expect(parsed[0].company).toBe("Acme Robotics");
+    expect(parsed[0].plan).toBe("enterprise");
+    // email is not part of the compact projection
+    expect(out).not.toContain("dana@acme.test");
+  });
 });

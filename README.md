@@ -27,12 +27,14 @@ apps/server  Fastify: REST + CopilotKit runtime  ──────┘──> ap
 ## What it demonstrates
 
 1. **UI control via frontend actions** — the agent filters/sorts the inbox, opens
-   tickets, and changes status/priority by calling `useCopilotAction` handlers
-   that drive the *same* state the UI uses.
+   tickets, navigates between pages (Inbox ↔ Customers), and changes
+   status/priority by calling `useCopilotAction` handlers that drive the *same*
+   state the UI uses.
 2. **Generative UI in chat** — the agent renders rich cards inline (ticket
    summary, knowledge citation) via action `render()`.
-3. **Human-in-the-loop** — `draftReply` proposes a customer reply and waits for
-   the rep to **approve or discard** before anything is sent.
+3. **Human-in-the-loop** — `draftReply` proposes a customer reply and
+   `changeCustomerPlan` proposes a plan upgrade/downgrade; both wait for the rep to
+   **approve or discard** before anything is sent or persisted.
 4. **MCP knowledge lookup** — the agent calls the external DeepWiki MCP server to
    answer technical questions and cites the source.
 5. **Shared agent state** — the agent's active ticket and research notes stream
@@ -76,10 +78,18 @@ With all three running, talk to Aria in the sidebar:
    renders in the chat.
 3. **MCP lookup** — *"How do I enable CORS in Fastify?"* (T-1001's topic) → the
    agent queries DeepWiki and replies with a cited card.
-4. **Human-in-the-loop** — *"Draft a reply for T-1004 apologizing and asking them
-   to re-verify the signing secret"* → an approval card appears; **Approve & send**
-   posts it to the thread; **Discard** drops it.
-5. **Shared state** — while Aria works, the "Agent working state" panel in the
+4. **Human-in-the-loop (reply)** — *"Draft a reply for T-1004 apologizing and asking
+   them to re-verify the signing secret"* → an approval card appears; **Approve &
+   send** posts it to the thread; **Discard** drops it.
+5. **Second page + navigation** — *"Show me the customers page"* → the Rail switches
+   to the Customers directory. (You can also click the **◍** Rail icon yourself.)
+6. **Open + summarize an account** — *"Open Acme Robotics and summarize their
+   account"* → Aria navigates to the customer, reads their tickets, and renders an
+   account-health card in the chat.
+7. **Human-in-the-loop (plan change)** — *"Upgrade Hooli to pro"* → an approval card
+   shows the **current → proposed** plan; **Approve & apply** persists it (the plan
+   badge updates in the directory); **Discard** leaves it unchanged.
+8. **Shared state** — while Aria works, the "Agent working state" panel in the
    chat shows the active ticket and any knowledge lookups.
 
 ## Test

@@ -6,9 +6,17 @@ import {
   useFrontendTool,
   useHumanInTheLoop,
 } from "@copilotkit/react-core/v2";
-import { TICKET_PRIORITIES, TICKET_STATUSES, type TicketPriority } from "@agentdemo/shared";
+import {
+  CUSTOMER_PLANS,
+  TICKET_PRIORITIES,
+  TICKET_STATUSES,
+  type CustomerPlan,
+  type TicketPriority,
+} from "@agentdemo/shared";
 import { useTickets } from "../state/TicketsProvider.js";
 import {
+  CustomerPlanApprovalCard,
+  CustomerSummaryCard,
   KnowledgeCitationCard,
   ReplyApprovalCard,
   TicketCreateApprovalCard,
@@ -30,6 +38,11 @@ export function CopilotActions({ onFlash }: { onFlash: (id: string) => void }) {
     customers,
     selected,
     filters,
+    view,
+    selectedCustomer,
+    setView,
+    selectCustomer,
+    patchCustomer,
     setFilters,
     selectTicket,
     patchTicket,
@@ -54,8 +67,13 @@ export function CopilotActions({ onFlash }: { onFlash: (id: string) => void }) {
     value: JSON.stringify({ filters, openTicketId: selected?.id ?? null }),
   });
   useAgentContext({
-    description: "Customers you can file new tickets for (pass the company name to createTicket)",
-    value: customers.map((c) => ({ company: c.company, plan: c.plan })),
+    description:
+      "Customers in the system (pass the company name to createTicket / openCustomer / changeCustomerPlan)",
+    value: customers.map((c) => ({ company: c.company, plan: c.plan, slaTier: c.slaTier })),
+  });
+  useAgentContext({
+    description: "The page the rep is currently on and the customer they have open",
+    value: JSON.stringify({ view, openCustomer: selectedCustomer?.company ?? null }),
   });
 
   // Backend tool calls (list_tickets, get_ticket, DeepWiki MCP) render as a
@@ -90,6 +108,29 @@ export function CopilotActions({ onFlash }: { onFlash: (id: string) => void }) {
       selectTicket(ticketId);
       onFlash(ticketId);
       return `Opened ${ticketId}.`;
+    },
+  });
+
+  useFrontendTool({
+    name: "navigateTo",
+    description: "Switch the page the rep is viewing.",
+    parameters: z.object({ page: z.enum(["inbox", "customers"]) }),
+    handler: async ({ page }) => {
+      setView(page);
+      return `Showing the ${page} page.`;
+    },
+  });
+
+  useFrontendTool({
+    name: "openCustomer",
+    description: "Open a customer's account on the Customers page, by company name.",
+    parameters: z.object({ company: z.string().describe("The company name, e.g. Acme Robotics") }),
+    handler: async ({ company }) => {
+      const match = findCustomerByName(company);
+      if (!match) return `No customer matches "${company}".`;
+      setView("customers");
+      selectCustomer(match.id);
+      return `Opened ${match.company}.`;
     },
   });
 
@@ -147,6 +188,30 @@ export function CopilotActions({ onFlash }: { onFlash: (id: string) => void }) {
     handler: async () => "Citation shown to the rep.",
     render: ({ args }) => (
       <KnowledgeCitationCard question={args.question ?? ""} answer={args.answer ?? "…"} repo={args.repo} />
+    ),
+  });
+
+  useFrontendTool({
+    name: "showCustomerSummary",
+    description: "Present an account-health summary of a customer to the rep as a card.",
+    parameters: z.object({
+      company: z.string().describe("The customer's company name"),
+      summary: z.string().describe("1-2 sentence account summary"),
+      highlights: z.array(z.string()).optional().describe("Key points / facts"),
+      plan: z.enum(CUSTOMER_PLANS).optional(),
+      slaTier: z.string().optional().describe("Response SLA, e.g. 1h"),
+      openTickets: z.number().optional().describe("Count of their open tickets"),
+    }),
+    handler: async () => "Account summary shown to the rep.",
+    render: ({ args }) => (
+      <CustomerSummaryCard
+        company={args.company ?? ""}
+        summary={args.summary ?? "…"}
+        highlights={args.highlights}
+        plan={args.plan as CustomerPlan | undefined}
+        slaTier={args.slaTier}
+        openTickets={args.openTickets}
+      />
     ),
   });
 
@@ -217,7 +282,70 @@ export function CopilotActions({ onFlash }: { onFlash: (id: string) => void }) {
     },
   });
 
+  // ── Human-in-the-loop: change a customer's plan, wait for approval ────────
+  useHumanInTheLoop({
+    name: "changeCustomerPlan",
+    description:
+      "Change a customer's plan (free/pro/enterprise). The rep must approve before it persists. Pass the customer's company name.",
+    parameters: z.object({
+      company: z.string().describe("The customer's company name, e.g. Globex Corp"),
+      plan: z.enum(CUSTOMER_PLANS).describe("The target plan"),
+    }),
+    render: ({ args, status, respond }) => {
+      const company = args.company ?? "";
+      const match = findCustomerByName(company);
+      const nextPlan = (args.plan as CustomerPlan | undefined) ?? "pro";
+      return (
+        <ChangePlanApproval
+          company={match?.company ?? company}
+          currentPlan={match?.plan ?? null}
+          nextPlan={nextPlan}
+          status={status as "inProgress" | "executing" | "complete"}
+          onApprove={async () => {
+            if (!match) {
+              respond?.(`No customer matches "${company}"; nothing was changed.`);
+              return false;
+            }
+            await patchCustomer(match.id, { plan: nextPlan });
+            respond?.(`${match.company} is now on the ${nextPlan} plan.`);
+            return true;
+          }}
+          onCancel={() => respond?.("The rep declined the plan change; nothing was changed.")}
+        />
+      );
+    },
+  });
+
   return null;
+}
+
+/** Approval card for an agent-proposed plan change (respond fires once). */
+function ChangePlanApproval(props: {
+  company: string;
+  currentPlan: CustomerPlan | null;
+  nextPlan: CustomerPlan;
+  status: "inProgress" | "executing" | "complete";
+  onApprove: () => Promise<boolean> | boolean;
+  onCancel: () => void;
+}) {
+  const [outcome, setOutcome] = useState<"changed" | "cancelled" | null>(null);
+  return (
+    <CustomerPlanApprovalCard
+      company={props.company}
+      currentPlan={props.currentPlan}
+      nextPlan={props.nextPlan}
+      status={props.status}
+      outcome={outcome}
+      onApprove={async () => {
+        const ok = await props.onApprove();
+        if (ok) setOutcome("changed");
+      }}
+      onCancel={() => {
+        setOutcome("cancelled");
+        props.onCancel();
+      }}
+    />
+  );
 }
 
 /** Approval card for an agent-proposed new ticket (respond fires once). */

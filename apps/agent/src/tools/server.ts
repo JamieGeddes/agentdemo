@@ -3,6 +3,7 @@ import { z } from "zod";
 import {
   TICKET_PRIORITIES,
   TICKET_STATUSES,
+  type Customer,
   type Ticket,
 } from "@agentdemo/shared";
 import { env } from "../env.js";
@@ -28,12 +29,13 @@ function summarizeTicket(t: Ticket) {
  */
 export function createServerTools(apiUrl: string = env.serverApiUrl): StructuredToolInterface[] {
   const listTickets = tool(
-    async ({ status, priority, search, sort }) => {
+    async ({ status, priority, search, sort, customerId }) => {
       const params = new URLSearchParams();
       if (status) params.set("status", status);
       if (priority) params.set("priority", priority);
       if (search) params.set("search", search);
       if (sort) params.set("sort", sort);
+      if (customerId) params.set("customerId", customerId);
       const res = await fetch(`${apiUrl}/api/tickets?${params.toString()}`);
       if (!res.ok) throw new Error(`list_tickets failed: ${res.status}`);
       const tickets = (await res.json()) as Ticket[];
@@ -41,13 +43,36 @@ export function createServerTools(apiUrl: string = env.serverApiUrl): Structured
     },
     {
       name: "list_tickets",
-      description: "List support tickets, optionally filtered by status, priority, or a text search. Returns a compact summary of each.",
+      description: "List support tickets, optionally filtered by status, priority, customer, or a text search. Returns a compact summary of each.",
       schema: z.object({
         status: z.enum(TICKET_STATUSES).optional().describe("Filter by ticket status"),
         priority: z.enum(TICKET_PRIORITIES).optional().describe("Filter by priority"),
         search: z.string().optional().describe("Free-text search across subject and body"),
         sort: z.enum(["newest", "oldest", "priority"]).optional(),
+        customerId: z.string().optional().describe("Filter by customer id, e.g. c1"),
       }),
+    },
+  );
+
+  const listCustomers = tool(
+    async () => {
+      const res = await fetch(`${apiUrl}/api/customers`);
+      if (!res.ok) throw new Error(`list_customers failed: ${res.status}`);
+      const customers = (await res.json()) as Customer[];
+      return JSON.stringify(
+        customers.map((c) => ({
+          id: c.id,
+          company: c.company,
+          plan: c.plan,
+          slaTier: c.slaTier,
+          contactName: c.contactName,
+        })),
+      );
+    },
+    {
+      name: "list_customers",
+      description: "List the B2B customers in the system, with their plan and SLA tier.",
+      schema: z.object({}),
     },
   );
 
@@ -66,5 +91,5 @@ export function createServerTools(apiUrl: string = env.serverApiUrl): Structured
     },
   );
 
-  return [listTickets, getTicket];
+  return [listTickets, getTicket, listCustomers];
 }
