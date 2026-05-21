@@ -26,19 +26,20 @@ apps/server  Fastify: REST + CopilotKit runtime  ──────┘──> ap
 
 ## What it demonstrates
 
-1. **UI control via frontend actions** — the agent filters/sorts the inbox, opens
+1. **UI control via frontend tools** — the agent filters/sorts the inbox, opens
    tickets, navigates between pages (Inbox ↔ Customers), and changes
-   status/priority by calling `useCopilotAction` handlers that drive the *same*
+   status/priority by calling `useFrontendTool` handlers that drive the *same*
    state the UI uses.
 2. **Generative UI in chat** — the agent renders rich cards inline (ticket
-   summary, knowledge citation) via action `render()`.
-3. **Human-in-the-loop** — `draftReply` proposes a customer reply and
-   `changeCustomerPlan` proposes a plan upgrade/downgrade; both wait for the rep to
+   summary, account health, knowledge citation) via a tool's `render()`.
+3. **Human-in-the-loop** — `useHumanInTheLoop` tools (`draftReply`,
+   `createTicket`, `changeCustomerPlan`) propose an action and wait for the rep to
    **approve or discard** before anything is sent or persisted.
 4. **MCP knowledge lookup** — the agent calls the external DeepWiki MCP server to
    answer technical questions and cites the source.
-5. **Shared agent state** — the agent's active ticket and research notes stream
-   into the chat live via `useCoAgent` / `useCoAgentStateRender`.
+5. **Readable app context** — the rep's current view (visible tickets, active
+   filters, open ticket/customer) is streamed to the agent via `useAgentContext`,
+   so Aria acts on what the rep is actually looking at.
 
 ## Prerequisites
 
@@ -89,8 +90,9 @@ With all three running, talk to Aria in the sidebar:
 7. **Human-in-the-loop (plan change)** — *"Upgrade Hooli to pro"* → an approval card
    shows the **current → proposed** plan; **Approve & apply** persists it (the plan
    badge updates in the directory); **Discard** leaves it unchanged.
-8. **Shared state** — while Aria works, the "Agent working state" panel in the
-   chat shows the active ticket and any knowledge lookups.
+8. **Context awareness** — filter or open something yourself, then ask *"what am I
+   looking at?"* → Aria answers from the live view it receives via `useAgentContext`
+   (current filters, the open ticket, the open customer).
 
 ## Test
 
@@ -110,14 +112,14 @@ npm run typecheck
   (see note below).
 - **`apps/agent/src/graph.ts`** is LangChain's prebuilt agent (`createAgent`) with
   `copilotkitMiddleware`, driven by Gemini Flash. It binds the backend tools
-  (ticket reads + DeepWiki MCP); the CopilotKit **frontend tools** are injected by
-  the middleware and routed to the browser to execute. A small `mergeSystemMessages`
-  middleware folds the agent context + system prompt into a single system message
-  (Gemini requires exactly one, first).
+  (ticket/customer reads + DeepWiki MCP); the CopilotKit **frontend tools** are
+  injected by the middleware and routed to the browser to execute. A small
+  `mergeSystemMessages` middleware folds the agent context + system prompt into a
+  single system message (Gemini requires exactly one, first).
 - **`apps/web/src/copilot/actions.tsx`** registers the readable context
   (`useAgentContext`), the frontend tools (UI control), the generative-UI cards,
-  the human-in-the-loop reply approval, and a compact activity chip for backend
-  tool calls.
+  the human-in-the-loop approvals (`useHumanInTheLoop`), and a compact activity
+  chip for backend tool calls.
 
 ## Notes & limitations
 

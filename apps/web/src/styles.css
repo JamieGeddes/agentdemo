@@ -287,12 +287,6 @@ button { font-family: inherit; cursor: pointer; }
 .approve__status--sent { color: var(--green); }
 .approve__status--cancelled { color: var(--slate-500); }
 
-/* Shared-state HUD (useCoAgent) */
-.hud { border: 1px dashed var(--accent); border-radius: var(--radius); background: var(--accent-soft); padding: 12px 14px; margin: 4px 0; }
-.hud__label { font-size: 10.5px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.07em; color: var(--accent-strong); margin-bottom: 6px; }
-.hud__item { font-size: 12.5px; color: var(--ink-700); margin: 3px 0; }
-.hud__item b { color: var(--ink-900); }
-
 .empty-list { padding: 40px 20px; text-align: center; color: var(--slate-400); font-size: 13px; }
 
 /* CopilotKit sidebar accent override */
