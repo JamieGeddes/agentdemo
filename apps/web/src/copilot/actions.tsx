@@ -95,6 +95,7 @@ export function CopilotActions({ onFlash }: { onFlash: (id: string) => void }) {
       sort: z.enum(["newest", "oldest", "priority"]).optional(),
     }),
     handler: async ({ status, priority, search, sort }) => {
+      setView("inbox");
       setFilters({ status, priority, search, sort });
       return `Inbox filtered (${[status, priority, search].filter(Boolean).join(", ") || "cleared"}).`;
     },
@@ -105,6 +106,7 @@ export function CopilotActions({ onFlash }: { onFlash: (id: string) => void }) {
     description: "Open a specific ticket in the detail view so the rep can see it.",
     parameters: z.object({ ticketId: z.string().describe("The ticket id, e.g. T-1001") }),
     handler: async ({ ticketId }) => {
+      setView("inbox");
       selectTicket(ticketId);
       onFlash(ticketId);
       return `Opened ${ticketId}.`;
@@ -139,6 +141,7 @@ export function CopilotActions({ onFlash }: { onFlash: (id: string) => void }) {
     description: "Change a ticket's status. This persists immediately.",
     parameters: z.object({ ticketId: z.string(), status: z.enum(TICKET_STATUSES) }),
     handler: async ({ ticketId, status }) => {
+      setView("inbox");
       await patchTicket(ticketId, { status });
       return `${ticketId} is now ${status}.`;
     },
@@ -149,6 +152,7 @@ export function CopilotActions({ onFlash }: { onFlash: (id: string) => void }) {
     description: "Change a ticket's priority. This persists immediately.",
     parameters: z.object({ ticketId: z.string(), priority: z.enum(TICKET_PRIORITIES) }),
     handler: async ({ ticketId, priority }) => {
+      setView("inbox");
       await patchTicket(ticketId, { priority });
       return `${ticketId} priority set to ${priority}.`;
     },
