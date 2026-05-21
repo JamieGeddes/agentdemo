@@ -33,6 +33,24 @@ describe("makeModel backend selection", () => {
     expect(makeModel("vertex")).toBeInstanceOf(ChatVertexAI);
   });
 
+  it("does not pick up GOOGLE_API_KEY when building the vertex backend", () => {
+    // @langchain/google-common falls back to GOOGLE_API_KEY from the env when
+    // `apiKey` is nullish, which would silently switch Vertex to API-key auth
+    // (and Vertex rejects that with 401). Guard against the regression.
+    const prev = process.env.GOOGLE_API_KEY;
+    process.env.GOOGLE_API_KEY = "leaked-key-should-be-ignored";
+    try {
+      const model = makeModel("vertex") as unknown as {
+        connection: { client: { constructor: { name: string } } };
+      };
+      expect(model.connection.client.constructor.name).not.toBe("ApiKeyGoogleAuth");
+      expect(model.connection.client.constructor.name).toBe("GAuthClient");
+    } finally {
+      if (prev === undefined) delete process.env.GOOGLE_API_KEY;
+      else process.env.GOOGLE_API_KEY = prev;
+    }
+  });
+
   it("throws on an unknown backend", () => {
     expect(() => makeModel("bogus")).toThrow(/Unknown LLM_BACKEND/);
   });

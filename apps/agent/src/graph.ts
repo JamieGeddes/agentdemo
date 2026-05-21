@@ -61,6 +61,11 @@ export function makeModel(backend: string = env.llmBackend): BaseChatModel {
     case "vertex":
       return new ChatVertexAI({
         model: env.geminiModel,
+        // Force an empty key so @langchain/google-common does NOT fall back to
+        // process.env.GOOGLE_API_KEY (set for the gemini-api backend). An empty
+        // string is falsy there, so it uses ADC instead of switching to API-key
+        // auth — which Vertex rejects.
+        apiKey: "",
         temperature: 0,
         location: env.vertexLocation,
         ...(env.vertexProject ? { authOptions: { projectId: env.vertexProject } } : {}),
