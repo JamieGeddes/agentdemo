@@ -53,7 +53,7 @@ export function CopilotActions({ onFlash }: { onFlash: (id: string) => void }) {
 
   // ── Share the rep's current view with the agent ──────────────────────────
   useAgentContext({
-    description: "The tickets currently visible in the rep's inbox (filtered view)",
+    description: "Tickets matching the rep's current inbox filters",
     value: tickets.map((t) => ({
       id: t.id,
       subject: t.subject,
@@ -63,17 +63,23 @@ export function CopilotActions({ onFlash }: { onFlash: (id: string) => void }) {
     })),
   });
   useAgentContext({
-    description: "The active inbox filters and the ticket the rep currently has open",
-    value: JSON.stringify({ filters, openTicketId: selected?.id ?? null }),
-  });
-  useAgentContext({
     description:
       "Customers in the system (pass the company name to createTicket / openCustomer / changeCustomerPlan)",
     value: customers.map((c) => ({ company: c.company, plan: c.plan, slaTier: c.slaTier })),
   });
+  // The rep's live UI state, gated on the active page so the open ticket /
+  // customer can never contradict the page (selections persist across view
+  // switches, so only report the one the rep is actually looking at).
   useAgentContext({
-    description: "The page the rep is currently on and the customer they have open",
-    value: JSON.stringify({ view, openCustomer: selectedCustomer?.company ?? null }),
+    description:
+      "The rep's CURRENT UI state — the page showing now, the active inbox filters, " +
+      "and what is open. This is the ground truth; trust it over anything inferred " +
+      "from earlier turns or tool calls.",
+    value: JSON.stringify({
+      page: view, // "inbox" | "customers"
+      inbox: view === "inbox" ? { filters, openTicketId: selected?.id ?? null } : null,
+      customers: view === "customers" ? { openCustomer: selectedCustomer?.company ?? null } : null,
+    }),
   });
 
   // Backend tool calls (list_tickets, get_ticket, DeepWiki MCP) render as a
