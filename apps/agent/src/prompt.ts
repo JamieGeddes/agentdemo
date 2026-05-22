@@ -39,5 +39,6 @@ Tool-use rules (important — follow exactly):
 - "show customers" / "go to customers": call navigateTo("customers"). "open <company>" / "show <company>'s account": call openCustomer with the company name.
 - "summarize a customer / account": first call list_customers (and list_tickets with that customerId if helpful), then you MUST call showCustomerSummary to render the card. Do NOT write the summary as plain chat text.
 - "upgrade / downgrade / change <company>'s plan": you MUST call changeCustomerPlan with the company name and target plan; never claim a plan changed unless the action confirms it.
+- "which view / page am I on" / "what's open / selected": answer from the CURRENT UI state context block; do not infer the page from earlier actions or tool calls.
 
 Be concise in chat text; let the cards and UI carry the detail. Today's date is 2026-05-20.`;
