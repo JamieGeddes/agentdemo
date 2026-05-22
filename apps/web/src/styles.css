@@ -279,6 +279,25 @@ button { font-family: inherit; cursor: pointer; }
 .toolchip__state { color: var(--slate-400); font-weight: 700; }
 .toolchip__state--done { color: var(--green); }
 
+/* Generative-UI skeleton (streaming card before its args arrive) */
+.gcard__skeleton { height: 11px; border-radius: 6px; margin: 7px 0; background: linear-gradient(90deg, var(--line-soft) 25%, var(--canvas) 37%, var(--line-soft) 63%); background-size: 400% 100%; animation: shimmer 1.3s ease infinite; }
+.gcard__skeleton--wide { width: 100%; }
+.gcard__skeleton--mid { width: 72%; }
+.gcard__skeleton--short { width: 44%; }
+@keyframes shimmer { 0% { background-position: 100% 0; } 100% { background-position: 0 0; } }
+
+/* Live "watch Aria work" panel (driven by streamed agent state) */
+.aria-panel { position: fixed; right: 24px; bottom: 96px; width: 300px; z-index: 50; animation: modal-in 0.14s ease; }
+.aria-panel .gcard { box-shadow: var(--shadow-md); }
+.aria-steps { list-style: none; margin: 4px 0 0; padding: 0; }
+.aria-step { display: flex; align-items: center; gap: 9px; font-size: 13px; padding: 4px 0; color: var(--slate-500); }
+.aria-step__mark { width: 16px; height: 16px; flex-shrink: 0; border-radius: 999px; display: grid; place-items: center; font-size: 10px; font-weight: 800; border: 1.5px solid var(--line); color: var(--green); }
+.aria-step--running .aria-step__mark { border-color: var(--accent); background: var(--accent); animation: aria-pulse 1s ease infinite; }
+.aria-step--running .aria-step__label { color: var(--ink-800); font-weight: 600; }
+.aria-step--done .aria-step__mark { border-color: var(--green); }
+.aria-step__detail { color: var(--slate-400); }
+@keyframes aria-pulse { 0%, 100% { box-shadow: 0 0 0 0 var(--accent-soft); } 50% { box-shadow: 0 0 0 4px var(--accent-soft); } }
+
 /* Reply approval (HITL) */
 .approve { border: 1px solid #dcdcfb; }
 .approve__draft { background: var(--canvas); border-radius: var(--radius-sm); padding: 11px 13px; font-size: 13.5px; line-height: 1.55; color: var(--ink-700); white-space: pre-wrap; border: 1px solid var(--line-soft); }

@@ -51,6 +51,21 @@ export interface Customer {
   slaTier: string;
 }
 
+/**
+ * One step in the agent's live "what I'm doing now" progress log, streamed
+ * from the agent's state to the chat sidebar as it works. Shared so the agent
+ * (which writes it) and the web app (which renders it) agree on the shape.
+ */
+export interface AriaStep {
+  /** Deterministic id (derived from a tool-call id or step index) so a paused/resumed run never duplicates a step. */
+  id: string;
+  /** Human-readable label, e.g. "Reading the ticket". */
+  label: string;
+  status: "running" | "done";
+  /** Optional extra context, e.g. the ticket id being read. */
+  detail?: string;
+}
+
 /** A support rep who handles tickets. */
 export interface Agent {
   id: string;

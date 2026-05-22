@@ -85,9 +85,22 @@ rep visibly sees the agent act in the UI (writes still persist to SQLite via RES
 - **The graph is `createAgent` + `copilotkitMiddleware`**, not a hand-rolled
   StateGraph (`apps/agent/src/graph.ts`). The hand-rolled version never rendered
   tool-call turns; don't reintroduce it.
-- **`useAgentContext` is intentionally disabled** — under `createAgent` it injects
-  a misplaced system message that errors the run ("System message should be the
-  first one"). The agent reads ticket data via its tools instead.
+- **`useAgentContext` works, but only because of `mergeSystemMessages`.** Under
+  `createAgent` it injects an extra system message, which alongside the
+  `systemPrompt` makes two — and Gemini errors ("System message should be the
+  first one") on more than one. The `mergeSystemMessages` middleware
+  (`apps/agent/src/graph.ts`) folds every system message into one leading message
+  just before the model call, so the context (3 `useAgentContext` calls in
+  `actions.tsx`) works. Any new prompt-visible state hits the same constraint;
+  reuse that middleware pattern.
+- **Custom agent state → generative UI via `useAgent`.** The `ariaProgress`
+  middleware owns an `aria_steps` field (wrapped in `zodState`, which is what
+  makes it serialize into the graph `output_schema` and the AG-UI STATE_SNAPSHOT)
+  and updates it from the `beforeModel`/`afterModel`/`afterAgent` hooks — NOT
+  `wrapToolCall`, which can't return a state patch. The web `AriaProgressPanel`
+  reads `useAgent().agent.state.aria_steps` to stream a live "watch Aria work"
+  timeline. Detect tool calls by duck-typing `message.tool_calls`, not
+  `instanceof AIMessage` (the instance can be from a different `@langchain/core`).
 - **The Fastify→runtime bridge re-serializes the body.** Fastify already JSON-parses
   the request, so `copilot.ts` reconstructs a Web `Request`, calls the fetch
   handler, and pipes the `Response` back (with `flushHeaders()`) to preserve SSE

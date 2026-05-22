@@ -40,6 +40,14 @@ apps/server  Fastify: REST + CopilotKit runtime  ──────┘──> ap
 5. **Readable app context** — the rep's current view (visible tickets, active
    filters, open ticket/customer) is streamed to the agent via `useAgentContext`,
    so Aria acts on what the rep is actually looking at.
+6. **Live agent progress (generative UI from agent state)** — a "watch Aria work"
+   panel streams the agent's multi-step progress (reading a ticket → searching the
+   knowledge base → drafting) from streamed agent state via `useAgent`, distinct
+   from the per-tool-call chips.
+7. **Contextual suggestions** — next-best-action chips above the chat input adapt to
+   the rep's current view (`useConfigureSuggestions`).
+8. **Progressive cards** — the summary/citation cards render a skeleton, then fill in
+   as the model streams their content.
 
 ## Prerequisites
 
@@ -93,6 +101,52 @@ With all three running, talk to Aria in the sidebar:
 8. **Context awareness** — filter or open something yourself, then ask *"what am I
    looking at?"* → Aria answers from the live view it receives via `useAgentContext`
    (current filters, the open ticket, the open customer).
+
+## Demo script: the generative-UI features
+
+This script shows the three generative-UI capabilities added on top of the basics
+above. The DeepWiki-backed tickets are tied to real repos — **T-1001** (fastify),
+**T-1002** (langchainjs), **T-1006** (react), **T-1008** (langgraph) — so knowledge
+lookups and citation cards look best on those.
+
+### 1. Live "watch Aria work" panel
+
+A floating panel (bottom-right) streams the step timeline while Aria works, then
+clears once the run settles — so kick off a **multi-step** request to see it:
+
+- *"Open T-1001, look up how to enable CORS in Fastify, and draft a reply to the
+  customer."* — the longest timeline: navigate → read → DeepWiki → cite → draft.
+- *"Investigate T-1002 — read the ticket, check the LangChain docs about streaming
+  timeouts, and summarize the issue."*
+- *"Read T-1008 and find the right way to connect a remote MCP server to a LangGraph
+  agent."*
+- *"Show me the urgent open tickets, then read the most pressing one and summarize it."*
+
+### 2. Contextual suggestion chips
+
+Chips above the chat input change with the rep's current view. Run these in sequence
+and watch them update (then **click a chip** to show it fires a real prompt):
+
+- Fresh inbox, nothing open → **Triage urgent**, **Oldest first**.
+- *"Open T-1003"* (or click any ticket) → **Summarize**, **Draft reply**, **Find similar docs**.
+- *"Show customers"* → **List customers**, **Enterprise accounts**.
+- *"Open Acme Robotics"* → **Account summary**, **Open tickets**, **Plan**.
+
+### 3. Progressive (skeleton → fill) cards
+
+The card renders a shimmer skeleton, then fills in as the model streams — most visible
+on longer answers:
+
+- *"Summarize ticket T-1006."* → ticket summary card.
+- *"Summarize Umbrella Health's account."* → account-health card.
+- *"How do I rotate API keys without downtime?"* → knowledge citation card (the longest
+  stream, so the clearest skeleton).
+
+### Kitchen-sink finale (all three in one turn)
+
+- *"Open T-1002, read it, look up how LangChain handles streaming and timeouts,
+  summarize the root cause as a card, and draft a reply to Tom."* — streams the
+  progress panel, renders a citation + summary card, and ends in a reply approval.
 
 ## Test
 

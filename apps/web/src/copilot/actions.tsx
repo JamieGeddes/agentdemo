@@ -2,6 +2,7 @@ import { useState } from "react";
 import { z } from "zod";
 import {
   useAgentContext,
+  useConfigureSuggestions,
   useDefaultRenderTool,
   useFrontendTool,
   useHumanInTheLoop,
@@ -14,6 +15,7 @@ import {
   type TicketPriority,
 } from "@agentdemo/shared";
 import { useTickets } from "../state/TicketsProvider.js";
+import { suggestionsForView } from "./suggestions.js";
 import {
   CustomerPlanApprovalCard,
   CustomerSummaryCard,
@@ -81,6 +83,21 @@ export function CopilotActions({ onFlash }: { onFlash: (id: string) => void }) {
       customers: view === "customers" ? { openCustomer: selectedCustomer?.company ?? null } : null,
     }),
   });
+
+  // ── Contextual next-best-action chips, derived from the rep's view ───────
+  // Static (deterministic) suggestions, recomputed when the view/selection
+  // changes via the deps array — no extra LLM round-trip.
+  useConfigureSuggestions(
+    {
+      available: "always",
+      suggestions: suggestionsForView({
+        view,
+        selectedTicketId: selected?.id ?? null,
+        selectedCustomer: selectedCustomer?.company ?? null,
+      }),
+    },
+    [view, selected?.id, selectedCustomer?.company],
+  );
 
   // Backend tool calls (list_tickets, get_ticket, DeepWiki MCP) render as a
   // compact activity chip instead of dumping the raw tool result into the chat.
@@ -176,13 +193,14 @@ export function CopilotActions({ onFlash }: { onFlash: (id: string) => void }) {
       sentiment: z.string().optional().describe("Customer sentiment, e.g. frustrated"),
     }),
     handler: async () => "Summary shown to the rep.",
-    render: ({ args }) => (
+    render: ({ args, status }) => (
       <TicketSummaryCard
         ticketId={args.ticketId ?? ""}
-        summary={args.summary ?? "…"}
+        summary={args.summary ?? ""}
         highlights={args.highlights}
         suggestedPriority={args.suggestedPriority as TicketPriority | undefined}
         sentiment={args.sentiment}
+        status={status as "inProgress" | "executing" | "complete"}
       />
     ),
   });
@@ -196,8 +214,13 @@ export function CopilotActions({ onFlash }: { onFlash: (id: string) => void }) {
       repo: z.string().optional().describe("Source repo, e.g. fastify/fastify"),
     }),
     handler: async () => "Citation shown to the rep.",
-    render: ({ args }) => (
-      <KnowledgeCitationCard question={args.question ?? ""} answer={args.answer ?? "…"} repo={args.repo} />
+    render: ({ args, status }) => (
+      <KnowledgeCitationCard
+        question={args.question ?? ""}
+        answer={args.answer ?? ""}
+        repo={args.repo}
+        status={status as "inProgress" | "executing" | "complete"}
+      />
     ),
   });
 
@@ -213,14 +236,15 @@ export function CopilotActions({ onFlash }: { onFlash: (id: string) => void }) {
       openTickets: z.number().optional().describe("Count of their open tickets"),
     }),
     handler: async () => "Account summary shown to the rep.",
-    render: ({ args }) => (
+    render: ({ args, status }) => (
       <CustomerSummaryCard
         company={args.company ?? ""}
-        summary={args.summary ?? "…"}
+        summary={args.summary ?? ""}
         highlights={args.highlights}
         plan={args.plan as CustomerPlan | undefined}
         slaTier={args.slaTier}
         openTickets={args.openTickets}
+        status={status as "inProgress" | "executing" | "complete"}
       />
     ),
   });

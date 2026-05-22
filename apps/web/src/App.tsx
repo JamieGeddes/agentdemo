@@ -2,6 +2,7 @@ import { useCallback, useState } from "react";
 import { CopilotKitProvider, CopilotSidebar } from "@copilotkit/react-core/v2";
 import { TicketsProvider, useTickets } from "./state/TicketsProvider.js";
 import { CopilotActions } from "./copilot/actions.js";
+import { AriaProgressPanel } from "./components/AriaProgressPanel.js";
 import { TicketList } from "./components/TicketList.js";
 import { TicketDetail } from "./components/TicketDetail.js";
 import { CustomersPage } from "./components/CustomersPage.js";
@@ -64,6 +65,7 @@ export default function App() {
     <CopilotKitProvider runtimeUrl="/api/copilotkit" useSingleEndpoint showDevConsole={false}>
       <TicketsProvider>
         <Desk />
+        <AriaProgressPanel />
         <CopilotSidebar
           agentId={AGENT_ID}
           isModalDefaultOpen

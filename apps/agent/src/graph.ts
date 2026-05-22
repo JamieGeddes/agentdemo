@@ -3,12 +3,14 @@ import { copilotkitMiddleware } from "@copilotkit/sdk-js/langgraph";
 import type { BaseChatModel } from "@langchain/core/language_models/chat_models";
 import { SystemMessage } from "@langchain/core/messages";
 import type { StructuredToolInterface } from "@langchain/core/tools";
+import { z } from "zod";
 import { ChatGoogleGenerativeAI } from "@langchain/google-genai";
 import { ChatVertexAI } from "@langchain/google-vertexai";
 import { env } from "./env.js";
 import { SYSTEM_PROMPT } from "./prompt.js";
 import { createServerTools } from "./tools/server.js";
 import { loadDeepwikiTools } from "./tools/mcp.js";
+import { ariaStepsState, reduceSteps, type ToolCallLike } from "./progress.js";
 
 /**
  * Gemini accepts exactly one system message, and it must be first. But
@@ -41,6 +43,36 @@ const mergeSystemMessages = createMiddleware({
       messages: rest,
     });
   },
+});
+
+/**
+ * Streams a live progress log to the chat sidebar. It owns one extra piece of
+ * agent state, `aria_steps`, and updates it from the lifecycle hooks that can
+ * return a state patch (`beforeModel` / `afterModel` / `afterAgent`). We avoid
+ * `wrapToolCall` deliberately — it can only return a ToolMessage|Command, not a
+ * state patch, so it can't append to `aria_steps` cleanly.
+ *
+ * `exposeState` on `copilotkitMiddleware` stays at its default (false), so this
+ * log is rendered for the rep but never fed back into Gemini's prompt.
+ */
+const ariaProgress = createMiddleware({
+  name: "ariaProgress",
+  stateSchema: z.object({ aria_steps: ariaStepsState }),
+  beforeModel: async (state) => ({
+    aria_steps: reduceSteps(state.aria_steps ?? [], { type: "model-start" }),
+  }),
+  afterModel: async (state) => {
+    const messages = state.messages ?? [];
+    const last = messages[messages.length - 1];
+    // Duck-type the tool calls rather than `instanceof AIMessage`: the message
+    // can be an AIMessage from a different copy of @langchain/core, so the
+    // instance check fails silently and we'd miss every tool step.
+    const toolCalls = ((last as { tool_calls?: ToolCallLike[] } | undefined)?.tool_calls ?? []) as ToolCallLike[];
+    return { aria_steps: reduceSteps(state.aria_steps ?? [], { type: "model-end", toolCalls }) };
+  },
+  afterAgent: async (state) => ({
+    aria_steps: reduceSteps(state.aria_steps ?? [], { type: "agent-end" }),
+  }),
 });
 
 /**
@@ -99,9 +131,11 @@ export function buildAgent(opts: BuildAgentOptions = {}) {
   return createAgent({
     model,
     tools: [...serverTools, ...mcpTools],
-    // mergeSystemMessages runs after copilotkitMiddleware so it sees (and folds
-    // in) the injected app-context system message.
-    middleware: [copilotkitMiddleware, mergeSystemMessages],
+    // Order matters: copilotkitMiddleware owns the AG-UI bridge (and emits the
+    // STATE_SNAPSHOT that carries aria_steps); ariaProgress writes that state;
+    // mergeSystemMessages stays LAST so it folds in every system message just
+    // before the model call (Gemini accepts only one).
+    middleware: [copilotkitMiddleware, ariaProgress, mergeSystemMessages],
     systemPrompt: SYSTEM_PROMPT,
   });
 }
