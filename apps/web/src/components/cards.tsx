@@ -1,6 +1,20 @@
 import type { CustomerPlan, TicketPriority } from "@agentdemo/shared";
 import { PlanBadge, PriorityPill } from "./pills.js";
 
+/** Status a generative card receives while its args stream in from the model. */
+type RenderStatus = "inProgress" | "executing" | "complete";
+
+/** Shimmer placeholder shown while a card's content is still streaming. */
+function CardSkeleton() {
+  return (
+    <>
+      <div className="gcard__skeleton gcard__skeleton--wide" />
+      <div className="gcard__skeleton gcard__skeleton--mid" />
+      <div className="gcard__skeleton gcard__skeleton--short" />
+    </>
+  );
+}
+
 /** Rich ticket summary card the agent renders in-chat (generative UI). */
 export function TicketSummaryCard(props: {
   ticketId: string;
@@ -8,7 +22,18 @@ export function TicketSummaryCard(props: {
   highlights?: string[];
   suggestedPriority?: TicketPriority;
   sentiment?: string;
+  status?: RenderStatus;
 }) {
+  // While args are still streaming we don't have a summary yet — show a skeleton
+  // rather than an empty card, so the rep sees the card take shape.
+  if (props.status === "inProgress" && !props.summary) {
+    return (
+      <div className="gcard">
+        <div className="gcard__label">◆ Ticket summary{props.ticketId ? ` · ${props.ticketId}` : ""}</div>
+        <CardSkeleton />
+      </div>
+    );
+  }
   return (
     <div className="gcard">
       <div className="gcard__label">◆ Ticket summary · {props.ticketId}</div>
@@ -43,7 +68,16 @@ export function CustomerSummaryCard(props: {
   openTickets?: number;
   summary: string;
   highlights?: string[];
+  status?: RenderStatus;
 }) {
+  if (props.status === "inProgress" && !props.summary) {
+    return (
+      <div className="gcard">
+        <div className="gcard__label">◍ Account{props.company ? ` · ${props.company}` : ""}</div>
+        <CardSkeleton />
+      </div>
+    );
+  }
   return (
     <div className="gcard">
       <div className="gcard__label">◍ Account · {props.company}</div>
@@ -112,7 +146,21 @@ export function CustomerPlanApprovalCard(props: {
 }
 
 /** Knowledge-base answer card with a source citation (from the DeepWiki MCP server). */
-export function KnowledgeCitationCard(props: { question: string; answer: string; repo?: string }) {
+export function KnowledgeCitationCard(props: {
+  question: string;
+  answer: string;
+  repo?: string;
+  status?: RenderStatus;
+}) {
+  if (props.status === "inProgress" && !props.answer) {
+    return (
+      <div className="gcard">
+        <div className="gcard__label">📖 Knowledge base</div>
+        {props.question && <p className="gcard__title">{props.question}</p>}
+        <CardSkeleton />
+      </div>
+    );
+  }
   return (
     <div className="gcard">
       <div className="gcard__label">📖 Knowledge base</div>
