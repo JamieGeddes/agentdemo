@@ -2,40 +2,57 @@ import { MultiServerMCPClient } from "@langchain/mcp-adapters";
 import type { StructuredToolInterface } from "@langchain/core/tools";
 import { env } from "../env.js";
 
-let cached: { client: MultiServerMCPClient; tools: StructuredToolInterface[] } | null = null;
+interface McpSource {
+  /** Stable key used for the client's server map + log messages. */
+  name: string;
+  url: string;
+}
+
+const cache = new Map<string, StructuredToolInterface[]>();
 
 /**
- * Connect to the external DeepWiki remote MCP server (streamable HTTP, no auth)
- * and load its tools (ask_question, read_wiki_structure, read_wiki_contents).
- *
- * Degrades gracefully: if the server is unreachable we return [] so the agent
- * still works on local tickets. Tools are cached across runs.
+ * Load one MCP server's tools over streamable HTTP, with a hard timeout so an
+ * unreachable server can never stall agent/dev-server startup. Each server gets
+ * its OWN client so a down server (e.g. the local runbooks one) can't take out
+ * a reachable one (e.g. DeepWiki) — they degrade independently to [].
  */
-export async function loadDeepwikiTools(): Promise<StructuredToolInterface[]> {
-  if (cached) return cached.tools;
+async function loadOne({ name, url }: McpSource): Promise<StructuredToolInterface[]> {
+  const cached = cache.get(name);
+  if (cached) return cached;
   try {
     const client = new MultiServerMCPClient({
       throwOnLoadError: false,
       useStandardContentBlocks: true,
-      mcpServers: {
-        deepwiki: { url: env.deepwikiUrl, transport: "http" },
-      },
+      mcpServers: { [name]: { url, transport: "http" } },
     });
-    // Don't let an unreachable MCP server stall agent/dev-server startup.
     const timeout = new Promise<never>((_, reject) =>
-      setTimeout(() => reject(new Error("DeepWiki MCP connection timed out")), 10_000),
+      setTimeout(() => reject(new Error(`${name} MCP connection timed out`)), 10_000),
     );
     const tools = await Promise.race([client.getTools(), timeout]);
-    cached = { client, tools };
+    cache.set(name, tools);
     return tools;
   } catch (err) {
-    console.warn(`[mcp] could not load DeepWiki tools, continuing without them:`, err);
+    console.warn(`[mcp] could not load ${name} tools, continuing without them:`, err);
     return [];
   }
 }
 
+/**
+ * Load every MCP server the agent uses:
+ *   - DeepWiki (remote, OSS-repo knowledge)
+ *   - Runbooks (local, internal product/operational knowledge)
+ * Both degrade gracefully and independently.
+ */
+export async function loadMcpTools(): Promise<StructuredToolInterface[]> {
+  const [deepwiki, runbooks] = await Promise.all([
+    loadOne({ name: "deepwiki", url: env.deepwikiUrl }),
+    loadOne({ name: "runbooks", url: env.runbooksUrl }),
+  ]);
+  return [...deepwiki, ...runbooks];
+}
+
 /** Names of the loaded MCP tools — used to tag research findings as external knowledge. */
-export async function deepwikiToolNames(): Promise<Set<string>> {
-  const tools = await loadDeepwikiTools();
+export async function mcpToolNames(): Promise<Set<string>> {
+  const tools = await loadMcpTools();
   return new Set(tools.map((t) => t.name));
 }

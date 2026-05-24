@@ -1,7 +1,17 @@
-import type { Agent, CustomerPlan, TicketPriority, TicketStatus } from "@agentdemo/shared";
+import type { Agent, CustomerPlan, SlaLevel, TicketPriority, TicketStatus } from "@agentdemo/shared";
 
 export function StatusPill({ status }: { status: TicketStatus }) {
   return <span className={`pill pill--${status}`}>{status}</span>;
+}
+
+const SLA_LABEL: Record<SlaLevel, string> = {
+  ok: "On track",
+  warning: "SLA at risk",
+  breach: "SLA breach",
+};
+
+export function SlaRiskPill({ level }: { level: SlaLevel }) {
+  return <span className={`pill pill--sla-${level}`}>{SLA_LABEL[level]}</span>;
 }
 
 export function PriorityPill({ priority }: { priority: TicketPriority }) {

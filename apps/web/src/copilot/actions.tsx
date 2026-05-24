@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import { z } from "zod";
 import {
   useAgentContext,
@@ -12,18 +12,26 @@ import {
   TICKET_PRIORITIES,
   TICKET_STATUSES,
   type CustomerPlan,
+  type TicketPatch,
   type TicketPriority,
 } from "@agentdemo/shared";
 import { useTickets } from "../state/TicketsProvider.js";
 import { suggestionsForView } from "./suggestions.js";
 import {
+  ActivityRecapCard,
+  batchActionLabel,
+  BatchTriageApprovalCard,
   CustomerPlanApprovalCard,
   CustomerSummaryCard,
   KnowledgeCitationCard,
+  RelatedTicketsCard,
   ReplyApprovalCard,
   TicketCreateApprovalCard,
   TicketSummaryCard,
   ToolActivityChip,
+  TriageBoardCard,
+  type BatchActionRow,
+  type RowDecision,
 } from "../components/cards.js";
 
 /**
@@ -38,6 +46,7 @@ export function CopilotActions({ onFlash }: { onFlash: (id: string) => void }) {
   const {
     tickets,
     customers,
+    agents,
     selected,
     filters,
     view,
@@ -50,7 +59,9 @@ export function CopilotActions({ onFlash }: { onFlash: (id: string) => void }) {
     patchTicket,
     addTicket,
     findCustomerByName,
+    agentOf,
     sendMessage,
+    sessionId,
   } = useTickets();
 
   // ── Share the rep's current view with the agent ──────────────────────────
@@ -68,6 +79,15 @@ export function CopilotActions({ onFlash }: { onFlash: (id: string) => void }) {
     description:
       "Customers in the system (pass the company name to createTicket / openCustomer / changeCustomerPlan)",
     value: customers.map((c) => ({ company: c.company, plan: c.plan, slaTier: c.slaTier })),
+  });
+  useAgentContext({
+    description:
+      "The support team roster. Map a rep's name (e.g. \"Sofia\") to their id here, then pass that assigneeId to assignTicket.",
+    value: agents.map((a) => ({ id: a.id, name: a.name })),
+  });
+  useAgentContext({
+    description: "This browser session's id — pass it to list_activity to scope the recap to this session.",
+    value: sessionId,
   });
   // The rep's live UI state, gated on the active page so the open ticket /
   // customer can never contradict the page (selections persist across view
@@ -181,6 +201,22 @@ export function CopilotActions({ onFlash }: { onFlash: (id: string) => void }) {
     },
   });
 
+  useFrontendTool({
+    name: "assignTicket",
+    description:
+      "Assign a ticket to a support rep by their agent id (e.g. a3). Resolve the rep's name to an id via the team roster first. This persists immediately.",
+    parameters: z.object({
+      ticketId: z.string(),
+      assigneeId: z.string().describe("The rep's agent id, e.g. a3"),
+    }),
+    handler: async ({ ticketId, assigneeId }) => {
+      setView("inbox");
+      await patchTicket(ticketId, { assigneeId });
+      const name = agentOf(assigneeId)?.name ?? assigneeId;
+      return `${ticketId} assigned to ${name}.`;
+    },
+  });
+
   // ── Generative UI: rich cards rendered in the chat ───────────────────────
   useFrontendTool({
     name: "showTicketSummary",
@@ -207,18 +243,21 @@ export function CopilotActions({ onFlash }: { onFlash: (id: string) => void }) {
 
   useFrontendTool({
     name: "showKnowledgeCitation",
-    description: "Present an answer sourced from the DeepWiki knowledge base as a cited card.",
+    description:
+      "Present an answer sourced from a knowledge base as a cited card. Set source to where it came from.",
     parameters: z.object({
       question: z.string(),
       answer: z.string(),
-      repo: z.string().optional().describe("Source repo, e.g. fastify/fastify"),
+      source: z.enum(["DeepWiki", "Runbook"]).optional().describe("Which knowledge base the answer came from"),
+      reference: z.string().optional().describe("The specific source, e.g. 'fastify/fastify' or 'rb-webhook-hmac'"),
     }),
     handler: async () => "Citation shown to the rep.",
     render: ({ args, status }) => (
       <KnowledgeCitationCard
         question={args.question ?? ""}
         answer={args.answer ?? ""}
-        repo={args.repo}
+        source={args.source}
+        reference={args.reference}
         status={status as "inProgress" | "executing" | "complete"}
       />
     ),
@@ -245,6 +284,114 @@ export function CopilotActions({ onFlash }: { onFlash: (id: string) => void }) {
         slaTier={args.slaTier}
         openTickets={args.openTickets}
         status={status as "inProgress" | "executing" | "complete"}
+      />
+    ),
+  });
+
+  useFrontendTool({
+    name: "showTriageBoard",
+    description:
+      "Show a ranked triage board: tickets with their SLA risk, priority and a proposed action. Use to present the queue before (or instead of) proposing writes.",
+    parameters: z.object({
+      rows: z.array(
+        z.object({
+          ticketId: z.string(),
+          company: z.string().optional(),
+          slaRisk: z.enum(["ok", "warning", "breach"]).optional().describe("SLA-breach risk level"),
+          priority: z.enum(TICKET_PRIORITIES).optional(),
+          proposedAction: z.string().optional().describe("Short label, e.g. 'escalate to urgent'"),
+          reason: z.string().optional().describe("Why — cite SLA risk / plan tier"),
+        }),
+      ),
+    }),
+    handler: async () => "Triage board shown to the rep.",
+    render: ({ args, status }) => (
+      <TriageBoardCard
+        rows={(args.rows ?? []) as Parameters<typeof TriageBoardCard>[0]["rows"]}
+        status={status as "inProgress" | "executing" | "complete"}
+      />
+    ),
+  });
+
+  useFrontendTool({
+    name: "showRelatedTickets",
+    description:
+      "Show a set of tickets you've correlated (same customer, same root cause, recurring theme) with a one-line explanation of the connection a human might miss.",
+    parameters: z.object({
+      connection: z.string().describe("The pattern / connection, e.g. 'Both Globex tickets are frontend perf/timeout issues'"),
+      ticketIds: z.array(z.string()).optional(),
+      rows: z
+        .array(
+          z.object({
+            ticketId: z.string(),
+            subject: z.string().optional(),
+            note: z.string().optional().describe("How this ticket fits the pattern"),
+          }),
+        )
+        .optional(),
+    }),
+    handler: async () => "Related tickets shown to the rep.",
+    render: ({ args, status }) => (
+      <RelatedTicketsCard
+        connection={args.connection ?? ""}
+        ticketIds={args.ticketIds}
+        rows={args.rows as Parameters<typeof RelatedTicketsCard>[0]["rows"]}
+        status={status as "inProgress" | "executing" | "complete"}
+      />
+    ),
+  });
+
+  useFrontendTool({
+    name: "showActivityRecap",
+    description:
+      "Show a recap of what was done this session, as a card. Call list_activity first, then pass its entries here.",
+    parameters: z.object({
+      items: z.array(
+        z.object({
+          summary: z.string(),
+          ticketId: z.string().optional(),
+          kind: z.string().optional(),
+        }),
+      ),
+    }),
+    handler: async () => "Session recap shown to the rep.",
+    render: ({ args, status }) => (
+      <ActivityRecapCard
+        items={(args.items ?? []) as Parameters<typeof ActivityRecapCard>[0]["items"]}
+        status={status as "inProgress" | "executing" | "complete"}
+      />
+    ),
+  });
+
+  // ── Human-in-the-loop: propose a batch of triage actions, wait for approval ─
+  useHumanInTheLoop({
+    name: "proposeTicketActions",
+    description:
+      "Propose a batch of ticket changes for the rep to approve in ONE card: reprioritize (setPriority), escalate (→ urgent), set status (setStatus), or assign to a rep (assign). Use this for triage. The rep can approve all, approve individual rows, or discard. Each action needs a per-row reason citing SLA risk / priority. Resolve rep names to assigneeId via the team roster.",
+    parameters: z.object({
+      rationale: z.string().describe("One-line why, e.g. 'SLA-breach triage of the open queue'"),
+      actions: z
+        .array(
+          z.object({
+            id: z.string().describe("A stable per-row id you assign, e.g. r1, r2"),
+            kind: z.enum(["setPriority", "setStatus", "assign", "escalate"]),
+            ticketId: z.string(),
+            priority: z.enum(TICKET_PRIORITIES).optional().describe("For setPriority"),
+            status: z.enum(TICKET_STATUSES).optional().describe("For setStatus"),
+            assigneeId: z.string().optional().describe("For assign — the rep's agent id, e.g. a3"),
+            assigneeName: z.string().optional().describe("For assign — the rep's display name"),
+            reason: z.string().describe("Why this action — cite SLA risk / priority"),
+          }),
+        )
+        .min(1),
+    }),
+    render: ({ args, status, respond }) => (
+      <BatchTriageApproval
+        rationale={args.rationale ?? ""}
+        actions={(args.actions ?? []) as BatchActionRow[]}
+        status={status as "inProgress" | "executing" | "complete"}
+        patchTicket={patchTicket}
+        respond={respond}
       />
     ),
   });
@@ -351,6 +498,114 @@ export function CopilotActions({ onFlash }: { onFlash: (id: string) => void }) {
   });
 
   return null;
+}
+
+/**
+ * Wrapper for the batch-triage HITL tool. Per-row Approve applies the write
+ * immediately (idempotent — guarded by `appliedRef`, and the underlying PATCH
+ * sets absolute values, so a single-route resume can't double-apply). The tool
+ * call resolves exactly once, when the rep finalizes (approve-all / finish /
+ * discard), with a summary string the model reads next turn.
+ */
+function BatchTriageApproval(props: {
+  rationale: string;
+  actions: BatchActionRow[];
+  status: "inProgress" | "executing" | "complete";
+  patchTicket: (id: string, patch: TicketPatch) => Promise<void>;
+  respond?: (msg: string) => void;
+}) {
+  const [decisions, setDecisions] = useState<Record<string, RowDecision>>({});
+  const [terminal, setTerminal] = useState(false);
+  const [summary, setSummary] = useState<string | null>(null);
+  const appliedRef = useRef<Set<string>>(new Set());
+
+  const applyAction = useCallback(
+    async (a: BatchActionRow) => {
+      if (appliedRef.current.has(a.id)) return;
+      appliedRef.current.add(a.id);
+      switch (a.kind) {
+        case "setPriority":
+          if (a.priority) await props.patchTicket(a.ticketId, { priority: a.priority });
+          break;
+        case "escalate":
+          await props.patchTicket(a.ticketId, { priority: "urgent" });
+          break;
+        case "setStatus":
+          if (a.status) await props.patchTicket(a.ticketId, { status: a.status });
+          break;
+        case "assign":
+          if (a.assigneeId) await props.patchTicket(a.ticketId, { assigneeId: a.assigneeId });
+          break;
+      }
+    },
+    [props],
+  );
+
+  const finalize = (final: Record<string, RowDecision>) => {
+    if (terminal) return;
+    const approved = props.actions.filter((a) => final[a.id] === "approved");
+    const skipped = props.actions.filter((a) => final[a.id] === "skipped");
+    const parts: string[] = [];
+    parts.push(
+      `Rep approved ${approved.length} of ${props.actions.length}` +
+        (approved.length ? `: ${approved.map((a) => `${a.ticketId} ${batchActionLabel(a)}`).join(", ")}.` : "."),
+    );
+    if (skipped.length) parts.push(`Skipped: ${skipped.map((a) => a.ticketId).join(", ")}.`);
+    const msg = parts.join(" ");
+    setSummary(msg);
+    setTerminal(true);
+    props.respond?.(msg);
+  };
+
+  const approveRow = async (id: string) => {
+    const a = props.actions.find((x) => x.id === id);
+    if (!a) return;
+    await applyAction(a);
+    setDecisions((d) => ({ ...d, [id]: "approved" }));
+  };
+  const skipRow = (id: string) => setDecisions((d) => ({ ...d, [id]: "skipped" }));
+
+  const approveAll = async () => {
+    const next: Record<string, RowDecision> = { ...decisions };
+    for (const a of props.actions) {
+      if ((next[a.id] ?? "pending") === "skipped") continue;
+      await applyAction(a);
+      next[a.id] = "approved";
+    }
+    setDecisions(next);
+    finalize(next);
+  };
+
+  // Commit current per-row choices; anything still pending counts as skipped.
+  const finish = () => {
+    const next: Record<string, RowDecision> = { ...decisions };
+    for (const a of props.actions) if (!next[a.id]) next[a.id] = "skipped";
+    setDecisions(next);
+    finalize(next);
+  };
+
+  const discardAll = () => {
+    const next: Record<string, RowDecision> = {};
+    for (const a of props.actions) next[a.id] = "skipped";
+    setDecisions(next);
+    finalize(next);
+  };
+
+  return (
+    <BatchTriageApprovalCard
+      rationale={props.rationale}
+      actions={props.actions}
+      decisions={decisions}
+      status={props.status}
+      terminal={terminal}
+      summary={summary}
+      onApproveRow={approveRow}
+      onSkipRow={skipRow}
+      onApproveAll={approveAll}
+      onFinish={finish}
+      onDiscardAll={discardAll}
+    />
+  );
 }
 
 /** Approval card for an agent-proposed plan change (respond fires once). */

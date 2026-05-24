@@ -9,7 +9,7 @@ import { ChatVertexAI } from "@langchain/google-vertexai";
 import { env } from "./env.js";
 import { SYSTEM_PROMPT } from "./prompt.js";
 import { createServerTools } from "./tools/server.js";
-import { loadDeepwikiTools } from "./tools/mcp.js";
+import { loadMcpTools } from "./tools/mcp.js";
 import { ariaStepsState, reduceSteps, type ToolCallLike } from "./progress.js";
 
 /**
@@ -142,5 +142,5 @@ export function buildAgent(opts: BuildAgentOptions = {}) {
 
 /** Factory used by `langgraph.json` to instantiate the graph for the dev server. */
 export async function makeGraph() {
-  return buildAgent({ mcpTools: await loadDeepwikiTools() });
+  return buildAgent({ mcpTools: await loadMcpTools() });
 }

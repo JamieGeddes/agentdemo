@@ -98,6 +98,35 @@ export interface TicketCreateInput {
   tags?: string[]; // default []
 }
 
+/**
+ * An audit entry recording something the rep did with Aria's help — every
+ * agent-driven write (status/priority/assignment/reply/plan/ticket) is logged
+ * so the rep can later ask "what did Aria do?" and get an honest recap.
+ */
+export interface Activity {
+  id: string;
+  /** Browser session that produced the activity, so a recap can scope to "this session". */
+  sessionId: string | null;
+  /** Coarse kind, e.g. "status" | "priority" | "assign" | "reply" | "plan" | "create". */
+  kind: string;
+  /** The ticket the action touched, if any. */
+  ticketId: string | null;
+  /** One-line human-readable summary, e.g. "T-1002 priority → high". */
+  summary: string;
+  /** Optional extra context. */
+  detail: string | null;
+  createdAt: string; // ISO 8601
+}
+
+/** Fields needed to record an activity; id/createdAt are generated. */
+export interface ActivityCreateInput {
+  sessionId?: string | null;
+  kind: string;
+  ticketId?: string | null;
+  summary: string;
+  detail?: string | null;
+}
+
 /** Query filters for listing tickets. */
 export interface TicketListQuery {
   status?: TicketStatus;

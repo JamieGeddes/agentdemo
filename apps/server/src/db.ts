@@ -57,13 +57,21 @@ function createSchema(db: DB): void {
       createdAt  TEXT NOT NULL
     );
     CREATE INDEX IF NOT EXISTS idx_messages_ticket ON messages(ticketId);
+    CREATE TABLE IF NOT EXISTS activity (
+      id        TEXT PRIMARY KEY,
+      sessionId TEXT,
+      kind      TEXT NOT NULL,
+      ticketId  TEXT,
+      summary   TEXT NOT NULL,
+      detail    TEXT,
+      createdAt TEXT NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_activity_session ON activity(sessionId);
   `);
 }
 
-function seedIfEmpty(db: DB): void {
-  const count = db.prepare("SELECT COUNT(*) AS n FROM tickets").get() as { n: number };
-  if (count.n > 0) return;
-
+/** Insert the seed fixtures. NO transaction of its own — callers wrap it. */
+function insertSeedRows(db: DB): void {
   const insertCustomer = db.prepare(
     "INSERT INTO customers (id, company, contactName, email, plan, slaTier) VALUES (@id, @company, @contactName, @email, @plan, @slaTier)",
   );
@@ -77,26 +85,47 @@ function seedIfEmpty(db: DB): void {
      VALUES (@id, @ticketId, @author, @authorName, @body, @createdAt)`,
   );
 
-  const seed = db.transaction(() => {
-    for (const c of seedCustomers) insertCustomer.run(c);
-    for (const a of seedAgents) insertAgent.run(a);
-    for (const t of seedTickets) {
-      insertTicket.run({
-        id: t.id,
-        subject: t.subject,
-        body: t.body,
-        status: t.status,
-        priority: t.priority,
-        customerId: t.customerId,
-        assigneeId: t.assigneeId,
-        tags: JSON.stringify(t.tags),
-        createdAt: t.createdAt,
-        updatedAt: t.updatedAt,
-      });
-      for (const m of t.messages) {
-        insertMessage.run({ ...m, ticketId: t.id });
-      }
+  for (const c of seedCustomers) insertCustomer.run(c);
+  for (const a of seedAgents) insertAgent.run(a);
+  for (const t of seedTickets) {
+    insertTicket.run({
+      id: t.id,
+      subject: t.subject,
+      body: t.body,
+      status: t.status,
+      priority: t.priority,
+      customerId: t.customerId,
+      assigneeId: t.assigneeId,
+      tags: JSON.stringify(t.tags),
+      createdAt: t.createdAt,
+      updatedAt: t.updatedAt,
+    });
+    for (const m of t.messages) {
+      insertMessage.run({ ...m, ticketId: t.id });
     }
-  });
-  seed();
+  }
+}
+
+/** Seed the database from the shared fixtures (assumes the tables are empty). */
+export function seedDatabase(db: DB): void {
+  db.transaction(() => insertSeedRows(db))();
+}
+
+/**
+ * Wipe all data and re-seed from the shared fixtures — the "reset to defaults"
+ * a demo uses to undo a session's changes. Clears the activity log too. Runs in
+ * one transaction; children are deleted before parents to respect FKs.
+ */
+export function resetDatabase(db: DB): void {
+  const tables = ["messages", "activity", "tickets", "customers", "agents"];
+  db.transaction(() => {
+    for (const table of tables) db.prepare(`DELETE FROM ${table}`).run();
+    insertSeedRows(db);
+  })();
+}
+
+function seedIfEmpty(db: DB): void {
+  const count = db.prepare("SELECT COUNT(*) AS n FROM tickets").get() as { n: number };
+  if (count.n > 0) return;
+  seedDatabase(db);
 }

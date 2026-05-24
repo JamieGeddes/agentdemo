@@ -1,6 +1,8 @@
 import { randomUUID } from "node:crypto";
 import {
   priorityRank,
+  type Activity,
+  type ActivityCreateInput,
   type Agent,
   type Customer,
   type CustomerPatch,
@@ -10,7 +12,7 @@ import {
   type TicketListQuery,
   type TicketPatch,
 } from "@agentdemo/shared";
-import type { DB } from "./db.js";
+import { resetDatabase, type DB } from "./db.js";
 
 interface TicketRow {
   id: string;
@@ -162,6 +164,40 @@ export class TicketStore {
 
   listAgents(): Agent[] {
     return this.db.prepare("SELECT * FROM agents").all() as Agent[];
+  }
+
+  /** Wipe all data (incl. the activity log) and re-seed the default fixtures. */
+  reset(): void {
+    resetDatabase(this.db);
+  }
+
+  /** Append an audit entry for something the rep did with Aria's help. */
+  logActivity(input: ActivityCreateInput): Activity {
+    const entry: Activity = {
+      id: `act-${randomUUID().slice(0, 8)}`,
+      sessionId: input.sessionId ?? null,
+      kind: input.kind,
+      ticketId: input.ticketId ?? null,
+      summary: input.summary,
+      detail: input.detail ?? null,
+      createdAt: new Date().toISOString(),
+    };
+    this.db
+      .prepare(
+        "INSERT INTO activity (id, sessionId, kind, ticketId, summary, detail, createdAt) VALUES (@id, @sessionId, @kind, @ticketId, @summary, @detail, @createdAt)",
+      )
+      .run(entry);
+    return entry;
+  }
+
+  /** List recent activity, newest first; optionally scoped to one session. */
+  listActivity(sessionId?: string, limit = 50): Activity[] {
+    const rows = sessionId
+      ? this.db
+          .prepare("SELECT * FROM activity WHERE sessionId = ? ORDER BY createdAt DESC LIMIT ?")
+          .all(sessionId, limit)
+      : this.db.prepare("SELECT * FROM activity ORDER BY createdAt DESC LIMIT ?").all(limit);
+    return rows as Activity[];
   }
 
   private hydrate(row: TicketRow): Ticket {
