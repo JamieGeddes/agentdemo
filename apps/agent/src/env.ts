@@ -21,5 +21,7 @@ export const env = {
   serverApiUrl: process.env.SERVER_API_URL ?? "http://localhost:4000",
   /** Public DeepWiki remote MCP server (streamable HTTP, no auth). */
   deepwikiUrl: process.env.DEEPWIKI_MCP_URL ?? "https://mcp.deepwiki.com/mcp",
+  /** Local internal-runbooks MCP server (streamable HTTP) — see apps/runbooks-mcp. */
+  runbooksUrl: process.env.RUNBOOKS_MCP_URL ?? "http://localhost:4100/mcp",
   isTest: process.env.NODE_ENV === "test",
 };

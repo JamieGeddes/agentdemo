@@ -111,6 +111,36 @@ export async function ticketRoutes(app: FastifyInstance, opts: RouteOpts): Promi
   app.get("/api/customers", async () => store.listCustomers());
   app.get("/api/agents", async () => store.listAgents());
 
+  // Reset the demo back to the seeded defaults (undo a session's changes).
+  app.post("/api/reset", async (_req, reply) => {
+    store.reset();
+    return reply.code(200).send({ ok: true });
+  });
+
+  app.get("/api/activity", async (req) => {
+    const q = req.query as Record<string, string | undefined>;
+    const limit = q.limit ? Math.min(Number(q.limit) || 50, 200) : 50;
+    return store.listActivity(q.sessionId || undefined, limit);
+  });
+
+  app.post("/api/activity", async (req, reply) => {
+    const body = (req.body ?? {}) as Record<string, unknown>;
+    if (!body.kind || typeof body.kind !== "string") {
+      return reply.code(400).send({ error: "kind is required" });
+    }
+    if (!body.summary || typeof body.summary !== "string") {
+      return reply.code(400).send({ error: "summary is required" });
+    }
+    const created = store.logActivity({
+      sessionId: typeof body.sessionId === "string" ? body.sessionId : null,
+      kind: body.kind,
+      ticketId: typeof body.ticketId === "string" ? body.ticketId : null,
+      summary: body.summary,
+      detail: typeof body.detail === "string" ? body.detail : null,
+    });
+    return reply.code(201).send(created);
+  });
+
   app.patch("/api/customers/:id", async (req, reply) => {
     const { id } = req.params as { id: string };
     const body = (req.body ?? {}) as CustomerPatch;

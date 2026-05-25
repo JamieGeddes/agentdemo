@@ -13,21 +13,25 @@ script.
 npm install                  # one install for the whole workspace
 cp .env.example .env         # then set GOOGLE_API_KEY (only needed to run the agent live)
 
-npm run dev                  # starts all three: agent (:2024), server (:4000), web (:5173)
+npm run dev                  # starts all four: runbooks-mcp (:4100), agent (:2024), server (:4000), web (:5173)
 npm run dev:agent            # langgraphjs dev server only
 npm run dev:server           # Fastify only (tsx watch)
 npm run dev:web              # Vite only
+npm run dev:runbooks         # internal-runbooks MCP server only (tsx watch)
+npm run reset                # wipe + re-seed the SQLite DB back to defaults (undo a demo session)
 
-npm test                     # Vitest across all 4 workspaces (model is MOCKED — no API key, offline, deterministic)
+npm test                     # Vitest across all workspaces (model is MOCKED — no API key, offline, deterministic)
 npm run test:watch
 npx vitest run apps/agent    # run one workspace's tests
 npx vitest run apps/server/src/ticketStore.test.ts   # run one file
-npm run typecheck            # tsc across shared + all three apps
+npm run typecheck            # tsc across shared + all apps
 npm run build                # tsc/vite build across workspaces
 ```
 
 Open <http://localhost:5173> after `npm run dev`; SQLite is created and seeded on
-first run at `apps/server/data/support.db`.
+first run at `apps/server/data/support.db`. **Writes persist across restarts** (the
+seeder only runs when the DB is empty). To undo a demo session, use the **Reset demo**
+button on the nav rail (`POST /api/reset` → re-seeds + reloads) or `npm run reset` (CLI).
 
 ## Layout (npm workspaces monorepo)
 
@@ -40,6 +44,10 @@ first run at `apps/server/data/support.db`.
 - `apps/agent` (`@agentdemo/agent`) — standalone **LangGraph JS** graph (Gemini
   Flash via LangChain). Run by `langgraphjs dev`, NOT in-process with the server.
 - `apps/web` (`@agentdemo/web`) — React + Vite + the CopilotKit chat sidebar.
+- `apps/runbooks-mcp` (`@agentdemo/runbooks-mcp`) — a local **MCP server** (streamable
+  HTTP, stateless) serving internal product/operational runbooks the public DeepWiki
+  can't (webhook HMAC, billing seats, API-key rotation). Loaded by the agent alongside
+  DeepWiki; degrades gracefully if down.
 
 ## Architecture / data flow
 
@@ -51,6 +59,7 @@ browser ──/api (Vite proxy)──> Fastify (:4000) ─┬─ REST /api/ticke
                                       LangGraph dev server (:2024) — Gemini + tools
                                               ├─ server tools → Fastify REST
                                               └─ MCP tools → DeepWiki (remote, no auth)
+                                                          └→ runbooks-mcp (:4100, local)
 ```
 
 The browser only ever talks to its own origin; Vite proxies `/api/*` to Fastify
@@ -61,13 +70,25 @@ Fastify runtime is a bridge, not the brain.
 ### The two kinds of tools (important)
 
 - **Backend tools** (`apps/agent/src/tools/`) run inside the graph: `list_tickets`,
-  `get_ticket` (read-only, hit the Fastify REST API), plus the DeepWiki MCP tools.
+  `get_ticket`, `list_customers`, `list_agents`, `list_activity` (read-only, hit the
+  Fastify REST API), plus the MCP tools — DeepWiki (`ask_question`, …) and the local
+  runbooks server (`search_runbooks`, `read_runbook`), loaded via independent clients
+  in `mcp.ts` so one being down can't take out the other.
 - **Frontend tools** (`apps/web/src/copilot/actions.tsx`) run in the browser:
-  `filterTickets`, `openTicket`, `setTicketStatus`, `setTicketPriority`
-  (UI control + persistence), `showTicketSummary` / `showKnowledgeCitation`
-  (generative-UI cards via `render()`), and `draftReply` (human-in-the-loop via
-  `useHumanInTheLoop`). They are surfaced to the model by `copilotkitMiddleware`
-  and their calls are routed back to the browser to execute.
+  `filterTickets`, `openTicket`, `navigateTo`, `openCustomer`, `setTicketStatus`,
+  `setTicketPriority`, `assignTicket` (UI control + persistence); `showTicketSummary` /
+  `showCustomerSummary` / `showKnowledgeCitation` / `showTriageBoard` /
+  `showRelatedTickets` / `showActivityRecap` (generative-UI cards via `render()`); and
+  the human-in-the-loop tools (`useHumanInTheLoop`) `draftReply`, `createTicket`,
+  `changeCustomerPlan`, and `proposeTicketActions` (one approval card batching N ticket
+  changes; per-row approve applies immediately, resolves once). They are surfaced to the
+  model by `copilotkitMiddleware` and routed back to the browser to execute.
+
+Two cross-cutting agentic features layer on top: a **proactive SLA watcher**
+(`TicketsProvider` computes at-risk tickets; `SlaWatchBanner` injects a triage turn via
+`useAgent().addMessage` + `runAgent` — detection is autonomous, the turn is client-triggered
+because the graph can't self-schedule), and an **activity log** (`/api/activity`, written
+client-side from the write handlers) that backs the "what did you do?" recap.
 
 Design rule: **reads happen server-side; writes go through frontend tools** so the
 rep visibly sees the agent act in the UI (writes still persist to SQLite via REST).

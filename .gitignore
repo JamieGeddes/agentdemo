@@ -23,3 +23,6 @@ apps/agent/.langgraph_api/
 .DS_Store
 .idea/
 .vscode/
+
+# Claude Code local artifacts (plans, session state)
+.claude/

@@ -3,6 +3,7 @@ import { TICKET_STATUSES, type TicketStatus } from "@agentdemo/shared";
 import { useTickets } from "../state/TicketsProvider.js";
 import { AssigneeChip, PriorityPill, StatusPill, relativeTime } from "./pills.js";
 import { NewTicketModal } from "./NewTicketModal.js";
+import { SlaWatchBanner } from "./SlaWatchBanner.js";
 
 const STATUS_FILTERS: Array<{ label: string; value: TicketStatus | "all" }> = [
   { label: "All", value: "all" },
@@ -36,6 +37,8 @@ export function TicketList({
           {loading ? "Loading…" : `${tickets.length} tickets · ${openCount} open`}
         </div>
       </div>
+
+      <SlaWatchBanner />
 
       {showNew && (
         <NewTicketModal onClose={() => setShowNew(false)} onCreated={(id) => onFlash(id)} />

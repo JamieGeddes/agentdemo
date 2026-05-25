@@ -306,6 +306,40 @@ button { font-family: inherit; cursor: pointer; }
 .approve__status--sent { color: var(--green); }
 .approve__status--cancelled { color: var(--slate-500); }
 
+/* Proactive SLA-watch banner — an in-flow strip at the top of the inbox column
+   (kept out of viewport-fixed positioning so it can never slide under the chat
+   sidebar, whether that sidebar docks or overlays). */
+.sla-banner {
+  display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+  padding: 10px 16px;
+  background: var(--red-soft); border-bottom: 1px solid var(--line-soft);
+  font-size: 12.5px; color: var(--ink-700);
+  animation: modal-in 0.16s ease;
+}
+.sla-banner__dot { width: 8px; height: 8px; border-radius: 999px; background: var(--red); flex: none; animation: aria-pulse 1.1s ease infinite; }
+.sla-banner__text { flex: 1 1 140px; min-width: 0; line-height: 1.4; }
+.sla-banner .btn { flex: none; }
+
+/* SLA-risk pills */
+.pill--sla-ok { background: var(--green-soft); color: var(--green); }
+.pill--sla-warning { background: var(--amber-soft); color: var(--amber); }
+.pill--sla-breach { background: var(--red-soft); color: var(--red); }
+
+/* Triage board / batch-approval rows */
+.triage { display: flex; flex-direction: column; gap: 8px; margin-top: 10px; }
+.triage__row { border: 1px solid var(--line); border-radius: var(--radius-sm); padding: 9px 11px; background: var(--surface); }
+.triage__row--approved { border-color: var(--green-soft); background: var(--green-soft); }
+.triage__row--skipped { opacity: 0.6; }
+.triage__head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.triage__ticket { background: var(--canvas); padding: 1px 6px; border-radius: 5px; font-size: 11.5px; font-weight: 700; color: var(--accent-strong); }
+.triage__company { font-size: 12px; color: var(--slate-500); }
+.triage__verb { font-size: 12px; font-weight: 600; color: var(--ink-700); }
+.triage__reason { font-size: 12px; color: var(--slate-500); margin-top: 5px; line-height: 1.45; }
+.triage__actions { display: flex; gap: 6px; margin-top: 8px; }
+.triage__badge { font-size: 11.5px; font-weight: 700; margin-top: 6px; }
+.triage__badge--approved { color: var(--green); }
+.triage__badge--skipped { color: var(--slate-500); }
+
 .empty-list { padding: 40px 20px; text-align: center; color: var(--slate-400); font-size: 13px; }
 
 /* CopilotKit sidebar accent override */

@@ -1,5 +1,6 @@
 import { useCallback, useState } from "react";
 import { CopilotKitProvider, CopilotSidebar } from "@copilotkit/react-core/v2";
+import { api } from "./api.js";
 import { TicketsProvider, useTickets } from "./state/TicketsProvider.js";
 import { CopilotActions } from "./copilot/actions.js";
 import { AriaProgressPanel } from "./components/AriaProgressPanel.js";
@@ -11,6 +12,25 @@ const AGENT_ID = "support_agent";
 
 function Rail() {
   const { view, setView } = useTickets();
+  const [resetting, setResetting] = useState(false);
+
+  const resetDemo = useCallback(async () => {
+    if (resetting) return;
+    if (!window.confirm("Reset the demo? This restores all tickets, customers and the activity log to their defaults.")) {
+      return;
+    }
+    setResetting(true);
+    try {
+      await api.reset();
+      // Full reload re-fetches everything and clears in-memory state (selection,
+      // filters, session id) so the demo starts truly fresh.
+      window.location.reload();
+    } catch {
+      setResetting(false);
+      window.alert("Reset failed — is the server running?");
+    }
+  }, [resetting]);
+
   return (
     <nav className="rail">
       <div className="rail__brand">H</div>
@@ -31,6 +51,14 @@ function Rail() {
       <button className="rail__item" title="Reports">▤</button>
       <button className="rail__item" title="Knowledge">📖</button>
       <div className="rail__spacer" />
+      <button
+        className="rail__item"
+        title="Reset demo to defaults"
+        onClick={resetDemo}
+        disabled={resetting}
+      >
+        {resetting ? "…" : "⟳"}
+      </button>
       <button className="rail__item" title="Settings">⚙</button>
     </nav>
   );

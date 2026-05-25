@@ -9,14 +9,16 @@
     "apps/*"
   ],
   "scripts": {
-    "dev": "concurrently -n agent,server,web -c magenta,cyan,green \"npm:dev:agent\" \"npm:dev:server\" \"npm:dev:web\"",
+    "dev": "concurrently -n runbooks,agent,server,web -c yellow,magenta,cyan,green \"npm:dev:runbooks\" \"npm:dev:agent\" \"npm:dev:server\" \"npm:dev:web\"",
     "dev:agent": "npm run dev --workspace apps/agent",
     "dev:server": "npm run dev --workspace apps/server",
     "dev:web": "npm run dev --workspace apps/web",
+    "dev:runbooks": "npm run dev --workspace apps/runbooks-mcp",
+    "reset": "npm run reset --workspace apps/server",
     "build": "npm run build --workspaces --if-present",
     "test": "vitest run",
     "test:watch": "vitest",
-    "typecheck": "tsc -p packages/shared && tsc -p apps/server --noEmit && tsc -p apps/agent --noEmit && tsc -p apps/web --noEmit"
+    "typecheck": "tsc -p packages/shared && tsc -p apps/server --noEmit && tsc -p apps/agent --noEmit && tsc -p apps/web --noEmit && tsc -p apps/runbooks-mcp --noEmit"
   },
   "devDependencies": {
     "concurrently": "^9.1.0",

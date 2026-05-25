@@ -3,6 +3,8 @@ import { z } from "zod";
 import {
   TICKET_PRIORITIES,
   TICKET_STATUSES,
+  type Activity,
+  type Agent,
   type Customer,
   type Ticket,
 } from "@agentdemo/shared";
@@ -91,5 +93,41 @@ export function createServerTools(apiUrl: string = env.serverApiUrl): Structured
     },
   );
 
-  return [listTickets, getTicket, listCustomers];
+  const listAgents = tool(
+    async () => {
+      const res = await fetch(`${apiUrl}/api/agents`);
+      if (!res.ok) throw new Error(`list_agents failed: ${res.status}`);
+      const agents = (await res.json()) as Agent[];
+      return JSON.stringify(agents.map((a) => ({ id: a.id, name: a.name })));
+    },
+    {
+      name: "list_agents",
+      description:
+        "List the support reps (the team roster), with their id and name. Use this to map a rep's name (e.g. \"Sofia\") to an assigneeId before proposing an assignment.",
+      schema: z.object({}),
+    },
+  );
+
+  const listActivity = tool(
+    async ({ sessionId }) => {
+      const params = new URLSearchParams();
+      if (sessionId) params.set("sessionId", sessionId);
+      const res = await fetch(`${apiUrl}/api/activity?${params.toString()}`);
+      if (!res.ok) throw new Error(`list_activity failed: ${res.status}`);
+      const activity = (await res.json()) as Activity[];
+      return JSON.stringify(
+        activity.map((a) => ({ kind: a.kind, ticketId: a.ticketId, summary: a.summary, at: a.createdAt })),
+      );
+    },
+    {
+      name: "list_activity",
+      description:
+        "List what has been done in this session (the audit log of agent-driven changes: status/priority/assignment/reply/plan/ticket changes). Use this to answer \"what did you do?\" / recap the session.",
+      schema: z.object({
+        sessionId: z.string().optional().describe("Scope the recap to one browser session id"),
+      }),
+    },
+  );
+
+  return [listTickets, getTicket, listCustomers, listAgents, listActivity];
 }

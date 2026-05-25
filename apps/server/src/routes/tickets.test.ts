@@ -124,6 +124,62 @@ describe("ticket routes", () => {
     expect(res.json().every((t: { customerId: string }) => t.customerId === customerId)).toBe(true);
   });
 
+  it("PATCH /api/tickets/:id assigns a rep", async () => {
+    const agentId = (await app.inject({ method: "GET", url: "/api/agents" })).json()[0].id;
+    const res = await app.inject({
+      method: "PATCH",
+      url: "/api/tickets/T-1007",
+      payload: { assigneeId: agentId },
+    });
+    expect(res.statusCode).toBe(200);
+    expect(res.json().assigneeId).toBe(agentId);
+  });
+
+  it("POST then GET /api/activity round-trips and scopes by session", async () => {
+    const created = await app.inject({
+      method: "POST",
+      url: "/api/activity",
+      payload: { sessionId: "sess-1", kind: "priority", ticketId: "T-1002", summary: "T-1002 priority → high" },
+    });
+    expect(created.statusCode).toBe(201);
+    expect(created.json().id).toMatch(/^act-/);
+
+    await app.inject({
+      method: "POST",
+      url: "/api/activity",
+      payload: { sessionId: "sess-2", kind: "assign", ticketId: "T-1004", summary: "T-1004 assigned to Sofia" },
+    });
+
+    const scoped = await app.inject({ method: "GET", url: "/api/activity?sessionId=sess-1" });
+    expect(scoped.statusCode).toBe(200);
+    expect(scoped.json()).toHaveLength(1);
+    expect(scoped.json()[0].summary).toBe("T-1002 priority → high");
+
+    const bad = await app.inject({ method: "POST", url: "/api/activity", payload: { kind: "x" } });
+    expect(bad.statusCode).toBe(400);
+  });
+
+  it("POST /api/reset restores the seeded defaults", async () => {
+    // Mutate some state...
+    await app.inject({ method: "PATCH", url: "/api/tickets/T-1001", payload: { status: "closed" } });
+    await app.inject({
+      method: "POST",
+      url: "/api/activity",
+      payload: { kind: "status", ticketId: "T-1001", summary: "closed it" },
+    });
+
+    // ...then reset.
+    const reset = await app.inject({ method: "POST", url: "/api/reset" });
+    expect(reset.statusCode).toBe(200);
+    expect(reset.json().ok).toBe(true);
+
+    // T-1001 is back to its seeded status, and the activity log is wiped.
+    const t = await app.inject({ method: "GET", url: "/api/tickets/T-1001" });
+    expect(t.json().status).toBe("open");
+    const activity = await app.inject({ method: "GET", url: "/api/activity" });
+    expect(activity.json()).toHaveLength(0);
+  });
+
   it("PATCH /api/customers/:id updates the plan and validates", async () => {
     const customerId = (await app.inject({ method: "GET", url: "/api/customers" })).json()[0].id;
 

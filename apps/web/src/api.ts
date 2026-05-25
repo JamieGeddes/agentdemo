@@ -1,4 +1,6 @@
 import type {
+  Activity,
+  ActivityCreateInput,
   Agent,
   Customer,
   CustomerPatch,
@@ -60,4 +62,13 @@ export const api = {
       headers: { "content-type": "application/json" },
       body: JSON.stringify(patch),
     }).then(json<Customer>),
+
+  logActivity: (input: ActivityCreateInput) =>
+    fetch("/api/activity", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(input),
+    }).then(json<Activity>),
+
+  reset: () => fetch("/api/reset", { method: "POST" }).then(json<{ ok: boolean }>),
 };
