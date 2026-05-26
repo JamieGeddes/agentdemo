@@ -130,6 +130,22 @@ rep visibly sees the agent act in the UI (writes still persist to SQLite via RES
   `apps/agent/langgraph.json`, `AGENT_GRAPH_ID` env, and `App.tsx`). Keep them in sync.
 - **DeepWiki MCP degrades gracefully** (`apps/agent/src/tools/mcp.ts`): unreachable
   ⇒ returns `[]` after a 10s timeout so the agent still works on local tickets.
+- **Dev wiring is pinned to IPv4 (`127.0.0.1`), not `localhost` — keep it that way.**
+  The services bind IPv4 (Fastify `0.0.0.0`; the agent via `langgraphjs dev --host
+  127.0.0.1` in `apps/agent/package.json`), and every inter-process URL uses
+  `127.0.0.1` (the Vite proxy target in `apps/web/vite.config.ts`, plus `AGENT_URL` /
+  `SERVER_API_URL` / `RUNBOOKS_MCP_URL` and their `env.ts` defaults). Using
+  `localhost` instead reintroduces a dual-stack hazard: on hosts where `localhost`
+  resolves `::1` (IPv6) first, requests hit the IPv6 path and only survive if Node
+  falls back to IPv4 — Node 22 does, **Node 24 does not**, giving
+  `AggregateError [ECONNREFUSED]` on every `/api/*`. Note your gitignored `.env`
+  overrides these defaults, so a stale `.env` with `localhost` URLs re-breaks it on
+  a fresh machine — re-copy from `.env.example`.
+- **`npm run dev` runs through `scripts/dev.sh`, not `concurrently` directly.** The
+  wrapper SIGKILLs stale port listeners before starting and traps `EXIT/INT/TERM` to
+  free them again on teardown (via `scripts/free-ports.sh`), because Ctrl-C doesn't
+  reliably reach the grandchild `tsx watch` / `langgraphjs dev` processes — without
+  this they orphan and squat on `:4100/:2024/:4000/:5173`.
 
 ## Tests
 
