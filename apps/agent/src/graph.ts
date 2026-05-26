@@ -137,7 +137,11 @@ export function buildAgent(opts: BuildAgentOptions = {}) {
     // before the model call (Gemini accepts only one).
     middleware: [copilotkitMiddleware, ariaProgress, mergeSystemMessages],
     systemPrompt: SYSTEM_PROMPT,
-  });
+    // Aria's richer flows (SLA triage, multi-step runbook/DeepWiki lookups, the
+    // batch proposeTicketActions card) chain enough model↔tool round-trips to
+    // exceed LangGraph's built-in default of 25. Bind a higher default that the
+    // graph carries into every run (invocation-time config still wins).
+  }).withConfig({ recursionLimit: 50 });
 }
 
 /** Factory used by `langgraph.json` to instantiate the graph for the dev server. */
