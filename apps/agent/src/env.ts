@@ -18,10 +18,10 @@ export const env = {
   /** Vertex AI only: region for the model endpoint. */
   vertexLocation: process.env.GOOGLE_CLOUD_LOCATION ?? "europe-west1",
   /** Base URL of the Fastify ticketing REST API (server tools call this). */
-  serverApiUrl: process.env.SERVER_API_URL ?? "http://localhost:4000",
+  serverApiUrl: process.env.SERVER_API_URL ?? "http://127.0.0.1:4000",
   /** Public DeepWiki remote MCP server (streamable HTTP, no auth). */
   deepwikiUrl: process.env.DEEPWIKI_MCP_URL ?? "https://mcp.deepwiki.com/mcp",
   /** Local internal-runbooks MCP server (streamable HTTP) — see apps/runbooks-mcp. */
-  runbooksUrl: process.env.RUNBOOKS_MCP_URL ?? "http://localhost:4100/mcp",
+  runbooksUrl: process.env.RUNBOOKS_MCP_URL ?? "http://127.0.0.1:4100/mcp",
   isTest: process.env.NODE_ENV === "test",
 };

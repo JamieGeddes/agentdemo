@@ -9,8 +9,7 @@
     "apps/*"
   ],
   "scripts": {
-    "predev": "bash scripts/predev-kill.sh",
-    "dev": "concurrently -n runbooks,agent,server,web -c yellow,magenta,cyan,green \"npm:dev:runbooks\" \"npm:dev:agent\" \"npm:dev:server\" \"npm:dev:web\"",
+    "dev": "bash scripts/dev.sh",
     "dev:agent": "npm run dev --workspace apps/agent",
     "dev:server": "npm run dev --workspace apps/server",
     "dev:web": "npm run dev --workspace apps/web",

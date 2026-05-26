@@ -4,7 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "langgraphjs dev --port ${AGENT_PORT:-2024} --no-browser",
+    "dev": "langgraphjs dev --host 127.0.0.1 --port ${AGENT_PORT:-2024} --no-browser",
     "test": "vitest run"
   },
   "dependencies": {

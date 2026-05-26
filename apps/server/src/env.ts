@@ -9,7 +9,7 @@ loadDotenv({ path: resolve(here, "../../../.env") });
 export const env = {
   serverPort: Number(process.env.SERVER_PORT ?? 4000),
   /** LangGraph dev server that hosts the support_agent graph. */
-  agentUrl: process.env.AGENT_URL ?? "http://localhost:2024",
+  agentUrl: process.env.AGENT_URL ?? "http://127.0.0.1:2024",
   agentGraphId: process.env.AGENT_GRAPH_ID ?? "support_agent",
   webPort: Number(process.env.WEB_PORT ?? 5173),
   /** Absolute path for the SQLite file (":memory:" under test). */
