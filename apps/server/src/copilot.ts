@@ -25,6 +25,13 @@ export function registerCopilotRuntime(app: FastifyInstance): void {
       [env.agentGraphId]: new LangGraphAgent({
         deploymentUrl: env.agentUrl,
         graphId: env.agentGraphId,
+        // Aria's richer flows (SLA triage, multi-step runbook/DeepWiki lookups, the
+        // batch proposeTicketActions card) exceed LangGraph's built-in default of 25
+        // steps. The run config is assembled HERE and sent to the dev server on every
+        // runs.stream() — .withConfig() on the compiled graph (apps/agent/src/graph.ts)
+        // is bypassed by the dev-server path, so this is the load-bearing knob. (50 also
+        // dodges @ag-ui/langgraph's mergeConfigs no-op check that rejects exactly 25.)
+        assistantConfig: { recursion_limit: 50 },
       }),
     },
   });

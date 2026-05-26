@@ -137,10 +137,13 @@ export function buildAgent(opts: BuildAgentOptions = {}) {
     // before the model call (Gemini accepts only one).
     middleware: [copilotkitMiddleware, ariaProgress, mergeSystemMessages],
     systemPrompt: SYSTEM_PROMPT,
-    // Aria's richer flows (SLA triage, multi-step runbook/DeepWiki lookups, the
-    // batch proposeTicketActions card) chain enough model↔tool round-trips to
-    // exceed LangGraph's built-in default of 25. Bind a higher default that the
-    // graph carries into every run (invocation-time config still wins).
+    // Bind a higher recursion limit as a FALLBACK for direct in-process
+    // invocation (`.invoke()`/`.stream()` on this binding — e.g. the agent unit
+    // tests). This does NOT govern the live app: under `langgraphjs dev` the graph
+    // is hosted behind the LangGraph HTTP API and each run uses the config the SDK
+    // client sends, never this bound config. The live limit is set via
+    // `assistantConfig: { recursion_limit: 50 }` on the LangGraphAgent in
+    // apps/server/src/copilot.ts.
   }).withConfig({ recursionLimit: 50 });
 }
 
