@@ -1,10 +1,16 @@
-import type { Agent, Customer, Ticket } from "./types.js";
+import type { Agent, Customer, Message, Ticket } from "./types.js";
 
 /**
- * Deterministic seed data for the PoC. Timestamps are fixed (not `Date.now()`)
- * so tests and demos are reproducible. Several tickets reference real
- * open-source libraries so the DeepWiki MCP "knowledge lookup" demo is coherent
- * (the agent can look up e.g. fastify/fastify or langchain-ai/langchainjs).
+ * Deterministic seed data for the PoC. Ticket/message timestamps are expressed
+ * as **relative offsets** ("minutes ago") and resolved against a `now` anchor at
+ * seed time (see `buildSeedTickets`), NOT as fixed calendar dates. This keeps the
+ * intended SLA mix (see the offsets below) stable whenever the demo is seeded or
+ * reset — frozen dates would make every open ticket breach once wall-clock time
+ * drifts past them. Tests stay deterministic by passing an explicit `now`.
+ *
+ * Several tickets reference real open-source libraries so the DeepWiki MCP
+ * "knowledge lookup" demo is coherent (the agent can look up e.g. fastify/fastify
+ * or langchain-ai/langchainjs).
  */
 
 export const seedAgents: Agent[] = [
@@ -21,7 +27,32 @@ export const seedCustomers: Customer[] = [
   { id: "c5", company: "Hooli", contactName: "Dana Swift", email: "dana@hooli.com", plan: "free", slaTier: "24h" },
 ];
 
-export const seedTickets: Ticket[] = [
+/** A seed message with its timestamp expressed as minutes before the seed anchor. */
+type MessageSpec = Omit<Message, "createdAt"> & { createdMinAgo: number };
+
+/**
+ * A seed ticket whose timestamps are relative offsets. `updatedMinAgo` tracks the
+ * last activity (typically the most recent message), matching how the live store
+ * bumps `updatedAt`.
+ */
+type TicketSpec = Omit<Ticket, "createdAt" | "updatedAt" | "messages"> & {
+  createdMinAgo: number;
+  updatedMinAgo: number;
+  messages: MessageSpec[];
+};
+
+/**
+ * Offsets are tuned to give a deliberate, stable SLA distribution among the six
+ * active (open/pending) tickets — 2 breaching, 2 warning, the rest ok:
+ *   T-1004 1h  @110m → breach   T-1001 1h  @100m → breach
+ *   T-1002 8h  @390m → warning  T-1003 8h  @380m → warning
+ *   T-1007 8h  @180m → ok       T-1005 24h @480m → ok
+ * Elapsed only grows, so a warning ticket can escalate to breach but never fall
+ * back to ok; the offsets leave ~1.5h of headroom before the warning pair tips.
+ * Settled tickets (resolved/closed) don't affect SLA — their offsets are days-old
+ * for realism only.
+ */
+const ticketSpecs: TicketSpec[] = [
   {
     id: "T-1001",
     subject: "CORS errors when calling our Fastify API from the browser",
@@ -31,11 +62,11 @@ export const seedTickets: Ticket[] = [
     customerId: "c1",
     assigneeId: "a1",
     tags: ["api", "cors", "fastify"],
-    createdAt: "2026-05-18T08:12:00.000Z",
-    updatedAt: "2026-05-18T09:01:00.000Z",
+    createdMinAgo: 100,
+    updatedMinAgo: 85,
     messages: [
-      { id: "m1", author: "customer", authorName: "Priya Nair", body: "This is blocking our production rollout — every request from the browser fails with a CORS error.", createdAt: "2026-05-18T08:12:00.000Z" },
-      { id: "m2", author: "agent", authorName: "Maya Chen", body: "Thanks Priya, taking a look now. Can you confirm which origin your frontend is served from?", createdAt: "2026-05-18T09:01:00.000Z" },
+      { id: "m1", author: "customer", authorName: "Priya Nair", body: "This is blocking our production rollout — every request from the browser fails with a CORS error.", createdMinAgo: 100 },
+      { id: "m2", author: "agent", authorName: "Maya Chen", body: "Thanks Priya, taking a look now. Can you confirm which origin your frontend is served from?", createdMinAgo: 85 },
     ],
   },
   {
@@ -47,10 +78,10 @@ export const seedTickets: Ticket[] = [
     customerId: "c2",
     assigneeId: null,
     tags: ["streaming", "langchain", "timeout"],
-    createdAt: "2026-05-17T14:40:00.000Z",
-    updatedAt: "2026-05-17T14:40:00.000Z",
+    createdMinAgo: 390,
+    updatedMinAgo: 390,
     messages: [
-      { id: "m3", author: "customer", authorName: "Tom Becker", body: "Repro: ask for a 1,000-word summary, the stream stops mid-sentence at ~30s. Short prompts are fine.", createdAt: "2026-05-17T14:40:00.000Z" },
+      { id: "m3", author: "customer", authorName: "Tom Becker", body: "Repro: ask for a 1,000-word summary, the stream stops mid-sentence at ~30s. Short prompts are fine.", createdMinAgo: 390 },
     ],
   },
   {
@@ -62,12 +93,12 @@ export const seedTickets: Ticket[] = [
     customerId: "c3",
     assigneeId: "a2",
     tags: ["security", "api-keys"],
-    createdAt: "2026-05-16T11:05:00.000Z",
-    updatedAt: "2026-05-17T10:22:00.000Z",
+    createdMinAgo: 380,
+    updatedMinAgo: 250,
     messages: [
-      { id: "m4", author: "customer", authorName: "Sara Lund", body: "Ideally we'd add a new key, migrate, then revoke the old one. Does your platform support overlapping keys?", createdAt: "2026-05-16T11:05:00.000Z" },
-      { id: "m5", author: "agent", authorName: "Devraj Patel", body: "Yes — you can have up to 5 active keys. I'll send the rollover steps shortly.", createdAt: "2026-05-16T15:30:00.000Z" },
-      { id: "m6", author: "customer", authorName: "Sara Lund", body: "Great, waiting on those steps before our maintenance window Friday.", createdAt: "2026-05-17T10:22:00.000Z" },
+      { id: "m4", author: "customer", authorName: "Sara Lund", body: "Ideally we'd add a new key, migrate, then revoke the old one. Does your platform support overlapping keys?", createdMinAgo: 380 },
+      { id: "m5", author: "agent", authorName: "Devraj Patel", body: "Yes — you can have up to 5 active keys. I'll send the rollover steps shortly.", createdMinAgo: 320 },
+      { id: "m6", author: "customer", authorName: "Sara Lund", body: "Great, waiting on those steps before our maintenance window Friday.", createdMinAgo: 250 },
     ],
   },
   {
@@ -79,11 +110,11 @@ export const seedTickets: Ticket[] = [
     customerId: "c4",
     assigneeId: "a3",
     tags: ["webhooks", "auth"],
-    createdAt: "2026-05-18T06:30:00.000Z",
-    updatedAt: "2026-05-18T07:15:00.000Z",
+    createdMinAgo: 110,
+    updatedMinAgo: 95,
     messages: [
-      { id: "m7", author: "customer", authorName: "Marcus Lee", body: "Started at 03:00 UTC. We verify the HMAC signature and it no longer matches.", createdAt: "2026-05-18T06:30:00.000Z" },
-      { id: "m8", author: "agent", authorName: "Sofia Rossi", body: "Looking into whether a secret was rotated on our end. Will update within the hour per your SLA.", createdAt: "2026-05-18T07:15:00.000Z" },
+      { id: "m7", author: "customer", authorName: "Marcus Lee", body: "Started at 03:00 UTC. We verify the HMAC signature and it no longer matches.", createdMinAgo: 110 },
+      { id: "m8", author: "agent", authorName: "Sofia Rossi", body: "Looking into whether a secret was rotated on our end. Will update within the hour per your SLA.", createdMinAgo: 95 },
     ],
   },
   {
@@ -95,11 +126,11 @@ export const seedTickets: Ticket[] = [
     customerId: "c5",
     assigneeId: "a1",
     tags: ["feature-request", "export"],
-    createdAt: "2026-05-12T09:00:00.000Z",
-    updatedAt: "2026-05-14T16:45:00.000Z",
+    createdMinAgo: 480,
+    updatedMinAgo: 300,
     messages: [
-      { id: "m9", author: "customer", authorName: "Dana Swift", body: "Even a basic CSV with subject/status/priority/dates would be hugely helpful.", createdAt: "2026-05-12T09:00:00.000Z" },
-      { id: "m10", author: "agent", authorName: "Maya Chen", body: "Logged as a feature request and shared with product. I'll keep this open for updates.", createdAt: "2026-05-14T16:45:00.000Z" },
+      { id: "m9", author: "customer", authorName: "Dana Swift", body: "Even a basic CSV with subject/status/priority/dates would be hugely helpful.", createdMinAgo: 480 },
+      { id: "m10", author: "agent", authorName: "Maya Chen", body: "Logged as a feature request and shared with product. I'll keep this open for updates.", createdMinAgo: 300 },
     ],
   },
   {
@@ -111,12 +142,12 @@ export const seedTickets: Ticket[] = [
     customerId: "c2",
     assigneeId: "a2",
     tags: ["react", "performance", "frontend"],
-    createdAt: "2026-05-10T13:20:00.000Z",
-    updatedAt: "2026-05-11T08:05:00.000Z",
+    createdMinAgo: 2880,
+    updatedMinAgo: 1440,
     messages: [
-      { id: "m11", author: "customer", authorName: "Tom Becker", body: "Typing in the filter box drops frames once we pass ~500 rows.", createdAt: "2026-05-10T13:20:00.000Z" },
-      { id: "m12", author: "agent", authorName: "Devraj Patel", body: "Recommended memoizing the row component and debouncing the search input. Sharing a snippet.", createdAt: "2026-05-10T17:10:00.000Z" },
-      { id: "m13", author: "customer", authorName: "Tom Becker", body: "That fixed it — smooth now even at 2k rows. Thanks!", createdAt: "2026-05-11T08:05:00.000Z" },
+      { id: "m11", author: "customer", authorName: "Tom Becker", body: "Typing in the filter box drops frames once we pass ~500 rows.", createdMinAgo: 2880 },
+      { id: "m12", author: "agent", authorName: "Devraj Patel", body: "Recommended memoizing the row component and debouncing the search input. Sharing a snippet.", createdMinAgo: 2820 },
+      { id: "m13", author: "customer", authorName: "Tom Becker", body: "That fixed it — smooth now even at 2k rows. Thanks!", createdMinAgo: 1440 },
     ],
   },
   {
@@ -128,10 +159,10 @@ export const seedTickets: Ticket[] = [
     customerId: "c3",
     assigneeId: null,
     tags: ["billing"],
-    createdAt: "2026-05-15T10:00:00.000Z",
-    updatedAt: "2026-05-15T10:00:00.000Z",
+    createdMinAgo: 180,
+    updatedMinAgo: 180,
     messages: [
-      { id: "m14", author: "customer", authorName: "Sara Lund", body: "Can you confirm the seat count used for the May billing cycle? We deactivated 7 users in April.", createdAt: "2026-05-15T10:00:00.000Z" },
+      { id: "m14", author: "customer", authorName: "Sara Lund", body: "Can you confirm the seat count used for the May billing cycle? We deactivated 7 users in April.", createdMinAgo: 180 },
     ],
   },
   {
@@ -143,12 +174,41 @@ export const seedTickets: Ticket[] = [
     customerId: "c1",
     assigneeId: "a3",
     tags: ["mcp", "langgraph", "integration"],
-    createdAt: "2026-05-08T12:00:00.000Z",
-    updatedAt: "2026-05-09T09:30:00.000Z",
+    createdMinAgo: 5760,
+    updatedMinAgo: 4320,
     messages: [
-      { id: "m15", author: "customer", authorName: "Priya Nair", body: "We point at the /mcp endpoint but bindTools sees no tools.", createdAt: "2026-05-08T12:00:00.000Z" },
-      { id: "m16", author: "agent", authorName: "Sofia Rossi", body: "You need to load tools from the MCP client and pass them to bindTools — sent docs links.", createdAt: "2026-05-08T15:20:00.000Z" },
-      { id: "m17", author: "customer", authorName: "Priya Nair", body: "Worked perfectly. Closing this out, thanks!", createdAt: "2026-05-09T09:30:00.000Z" },
+      { id: "m15", author: "customer", authorName: "Priya Nair", body: "We point at the /mcp endpoint but bindTools sees no tools.", createdMinAgo: 5760 },
+      { id: "m16", author: "agent", authorName: "Sofia Rossi", body: "You need to load tools from the MCP client and pass them to bindTools — sent docs links.", createdMinAgo: 5700 },
+      { id: "m17", author: "customer", authorName: "Priya Nair", body: "Worked perfectly. Closing this out, thanks!", createdMinAgo: 4320 },
     ],
   },
 ];
+
+/** Resolve a "minutes ago" offset to an ISO 8601 string against the seed anchor. */
+const isoAgo = (now: number, minAgo: number): string =>
+  new Date(now - minAgo * 60_000).toISOString();
+
+/**
+ * Build the seed tickets with concrete timestamps anchored to `now` (the moment
+ * of seeding). Called by the DB seeder/reset so first boot, `npm run reset`, and
+ * the Reset-demo button all produce the same SLA distribution relative to the
+ * current time. Pass an explicit `now` for deterministic tests.
+ */
+export function buildSeedTickets(now: number = Date.now()): Ticket[] {
+  return ticketSpecs.map(({ createdMinAgo, updatedMinAgo, messages, ...rest }) => ({
+    ...rest,
+    createdAt: isoAgo(now, createdMinAgo),
+    updatedAt: isoAgo(now, updatedMinAgo),
+    messages: messages.map(({ createdMinAgo: msgMinAgo, ...msg }) => ({
+      ...msg,
+      createdAt: isoAgo(now, msgMinAgo),
+    })),
+  }));
+}
+
+/**
+ * Convenience snapshot built at module load. Fine for structure-only consumers
+ * (ids, counts, references); the DB seeder calls {@link buildSeedTickets} directly
+ * so its timestamps track the actual seed moment.
+ */
+export const seedTickets: Ticket[] = buildSeedTickets();

@@ -1,7 +1,7 @@
 import Database from "better-sqlite3";
 import { mkdirSync } from "node:fs";
 import { dirname } from "node:path";
-import { seedAgents, seedCustomers, seedTickets } from "@agentdemo/shared";
+import { buildSeedTickets, seedAgents, seedCustomers } from "@agentdemo/shared";
 
 export type DB = Database.Database;
 
@@ -87,7 +87,9 @@ function insertSeedRows(db: DB): void {
 
   for (const c of seedCustomers) insertCustomer.run(c);
   for (const a of seedAgents) insertAgent.run(a);
-  for (const t of seedTickets) {
+  // Resolve timestamps against the actual seed moment so first boot and every
+  // reset produce the same SLA mix relative to "now" (not frozen calendar dates).
+  for (const t of buildSeedTickets()) {
     insertTicket.run({
       id: t.id,
       subject: t.subject,
