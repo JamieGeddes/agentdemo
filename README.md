@@ -51,7 +51,7 @@ apps/server  Fastify: REST + CopilotKit runtime  ──────┘──> ap
 
 ## Prerequisites
 
-- Node ≥ 20 (tested on Node 22)
+- Node ≥ 24 (see `.nvmrc`)
 - A **Gemini API key** — required only to run the agent's LLM loop.
   Get one at <https://aistudio.google.com/apikey>.
 
