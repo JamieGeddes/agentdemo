@@ -34,6 +34,13 @@ export function registerCopilotRuntime(app: FastifyInstance): void {
         assistantConfig: { recursion_limit: 50 },
       }),
     },
+    // A2UI: auto-apply the A2UI middleware to the agent. It injects a `render_a2ui`
+    // tool (+ usage guide) so Aria can compose dynamic UI surfaces, progressively
+    // renders them as `a2ui-surface` activity events, and on a surface button click
+    // feeds the action back into the next run (forwardedProps.a2uiAction) as a
+    // `log_a2ui_event` tool result for Aria to react to. The component catalog/schema
+    // is supplied from the client (CopilotKitProvider `a2ui={{ catalog }}` in App.tsx).
+    a2ui: { injectA2UITool: true },
   });
 
   const handler = createCopilotRuntimeHandler({

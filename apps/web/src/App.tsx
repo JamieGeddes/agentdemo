@@ -3,6 +3,7 @@ import { CopilotKitProvider, CopilotSidebar } from "@copilotkit/react-core/v2";
 import { api } from "./api.js";
 import { TicketsProvider, useTickets } from "./state/TicketsProvider.js";
 import { CopilotActions } from "./copilot/actions.js";
+import { supportCatalog } from "./copilot/a2uiCatalog.js";
 import { AriaProgressPanel } from "./components/AriaProgressPanel.js";
 import { TicketList } from "./components/TicketList.js";
 import { TicketDetail } from "./components/TicketDetail.js";
@@ -90,7 +91,16 @@ function Desk() {
 
 export default function App() {
   return (
-    <CopilotKitProvider runtimeUrl="/api/copilotkit" useSingleEndpoint showDevConsole={false}>
+    <CopilotKitProvider
+      runtimeUrl="/api/copilotkit"
+      useSingleEndpoint
+      // A2UI: register the bespoke support-desk catalog. The renderer auto-activates
+      // because the runtime reports A2UI is configured (apps/server/src/copilot.ts).
+      // `includeSchema` defaults to true, so the catalog's component schema is sent to
+      // Aria as context — no server-side schema needed.
+      a2ui={{ catalog: supportCatalog }}
+      showDevConsole={false}
+    >
       <TicketsProvider>
         <Desk />
         <AriaProgressPanel />

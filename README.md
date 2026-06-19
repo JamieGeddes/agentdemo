@@ -10,7 +10,7 @@ without replacing the app it lives in.
 
 | Concern | Tech |
 | --- | --- |
-| Front end | React + Vite, **CopilotKit** chat sidebar (AG-UI protocol) |
+| Front end | React + Vite, **CopilotKit** chat sidebar (**AG-UI** + **A2UI**) |
 | App API | **Fastify** (TypeScript) REST + **SQLite** (`better-sqlite3`) |
 | Agent | Standalone **LangGraph (JS)** graph, **Gemini Flash** via **LangChain** |
 | External tools | **DeepWiki** remote **MCP** server (streamable HTTP, no auth) |
@@ -48,6 +48,11 @@ apps/server  Fastify: REST + CopilotKit runtime  ──────┘──> ap
    the rep's current view (`useConfigureSuggestions`).
 8. **Progressive cards** — the summary/citation cards render a skeleton, then fill in
    as the model streams their content.
+9. **A2UI generative UI (agent-composed)** — alongside the fixed cards above, Aria can
+   compose a *bespoke interactive panel at runtime* from an A2UI component catalog
+   (`render_a2ui`); clicking a button on that panel routes the action back to Aria, which
+   runs the real tool. The contrast in one chat: fixed-card generative UI (AG-UI) vs. UI
+   whose *structure the agent designs* (A2UI).
 
 ## Prerequisites
 
@@ -104,7 +109,7 @@ With all three running, talk to Aria in the sidebar:
 
 ## Demo script: the generative-UI features
 
-This script shows the three generative-UI capabilities added on top of the basics
+This script shows the four generative-UI capabilities added on top of the basics
 above. The DeepWiki-backed tickets are tied to real repos — **T-1001** (fastify),
 **T-1002** (langchainjs), **T-1006** (react), **T-1008** (langgraph) — so knowledge
 lookups and citation cards look best on those.
@@ -142,6 +147,22 @@ on longer answers:
 - *"How do I rotate API keys without downtime?"* → knowledge citation card (the longest
   stream, so the clearest skeleton).
 
+### 4. A2UI: an agent-composed interactive panel
+
+The cards above are fixed React components Aria fills with data. A2UI is different:
+Aria designs the panel's **structure** at runtime from a small component catalog
+(`apps/web/src/copilot/a2uiCatalog.tsx`), and its buttons act back on the desk.
+
+- *"Open T-1001 and suggest next actions."* → instead of a fixed card, Aria composes an
+  **interactive panel** in the chat (a summary line, an SLA badge / priority pill, and a
+  couple of action buttons). Watch the **"Designing a custom panel"** step in the progress
+  panel.
+- **Click an action** (e.g. *Escalate to urgent* / *Assign* / *Draft reply*) → the click
+  routes back to Aria, which runs the **real** tool — the ticket updates live in the inbox
+  and persists, exactly like the other write paths.
+- Contrast it directly: *"Summarize T-1001"* still renders the fixed AG-UI summary card —
+  same chat, two different generative-UI approaches.
+
 ### Kitchen-sink finale (all three in one turn)
 
 - *"Open T-1002, read it, look up how LangChain handles streaming and timeouts,
@@ -174,6 +195,13 @@ npm run typecheck
   (`useAgentContext`), the frontend tools (UI control), the generative-UI cards,
   the human-in-the-loop approvals (`useHumanInTheLoop`), and a compact activity
   chip for backend tool calls.
+- **A2UI** rides the same `/api/copilotkit` bridge — no agent-graph changes. It's
+  enabled with one flag on the runtime (`a2ui: { injectA2UITool: true }` in
+  `copilot.ts`) plus a bespoke component catalog on the client
+  (`apps/web/src/copilot/a2uiCatalog.tsx`, registered via `CopilotKitProvider
+  a2ui={{ catalog }}`). The A2UI middleware injects a `render_a2ui` tool so Aria can
+  compose a surface, streams it into chat, and feeds surface button clicks back into
+  the next run for Aria to act on.
 
 ## Notes & limitations
 
