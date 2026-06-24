@@ -83,6 +83,10 @@ Fastify runtime is a bridge, not the brain.
   `changeCustomerPlan`, and `proposeTicketActions` (one approval card batching N ticket
   changes; per-row approve applies immediately, resolves once). They are surfaced to the
   model by `copilotkitMiddleware` and routed back to the browser to execute.
+- **A2UI tool** (`render_a2ui`) is a *third* path, sitting alongside the fixed cards: a
+  tool the **server-side A2UI middleware injects** (not declared in `actions.tsx`) so Aria
+  composes a UI surface at runtime from a component catalog rather than picking a
+  pre-built card. See the A2UI note under "Things that will bite you".
 
 Two cross-cutting agentic features layer on top: a **proactive SLA watcher**
 (`TicketsProvider` computes at-risk tickets; `SlaWatchBanner` injects a triage turn via
@@ -126,6 +130,24 @@ rep visibly sees the agent act in the UI (writes still persist to SQLite via RES
   the request, so `copilot.ts` reconstructs a Web `Request`, calls the fetch
   handler, and pipes the `Response` back (with `flushHeaders()`) to preserve SSE
   streaming. Keep that flush — it matters for the frontend-tool resume flow.
+- **A2UI is already bundled in the pinned CopilotKit 1.57.x — no version bump.** It's
+  enabled with `a2ui: { injectA2UITool: true }` on the `CopilotRuntime` (`copilot.ts`)
+  plus a bespoke catalog on the client (`apps/web/src/copilot/a2uiCatalog.tsx`, passed via
+  `CopilotKitProvider a2ui={{ catalog }}` in `App.tsx`). The catalog is **client-only** —
+  `includeSchema` (default true) forwards its component schema to Aria as context (the same
+  channel `useAgentContext` uses, so `mergeSystemMessages` folds it), which is why the
+  server needs no schema and the **agent graph needs no code change**. The server-side A2UI
+  middleware (`@ag-ui/a2ui-middleware`, nested under `@copilotkit/runtime`) injects the
+  `render_a2ui` tool, progressively renders the surface as `a2ui-surface` activity events
+  (a *separate* message type from the `render()` cards — additive), and on a surface button
+  click feeds the action back into the **next run** via `forwardedProps.a2uiAction` as a
+  synthetic `log_a2ui_event` tool result. The prompt (`apps/agent/src/prompt.ts`) scopes
+  Aria to use it only for the "suggest next actions" panel and maps each action name back to
+  a real tool (`setTicketPriority` / `assignTicket` / `draftReply`). Build the catalog from
+  the same Zod `definitions` you give `createCatalog`; keep custom renderers on the app's CSS
+  classes so a composed surface looks native. A2UI is **live-only** (needs the model), so the
+  mocked offline suite doesn't cover the round-trip — `a2uiCatalog.test.ts` only asserts the
+  catalog builds.
 - **The agent graph id / web agentId is `support_agent`** (wired in
   `apps/agent/langgraph.json`, `AGENT_GRAPH_ID` env, and `App.tsx`). Keep them in sync.
 - **DeepWiki MCP degrades gracefully** (`apps/agent/src/tools/mcp.ts`): unreachable

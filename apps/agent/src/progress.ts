@@ -70,6 +70,8 @@ export function stepLabelForTool(name: string): string {
     draftReply: "Drafting a reply",
     createTicket: "Drafting a new ticket",
     changeCustomerPlan: "Preparing a plan change",
+    // A2UI — Aria composes a dynamic interactive surface at runtime.
+    render_a2ui: "Designing a custom panel",
   };
   return labels[name] ?? name;
 }
