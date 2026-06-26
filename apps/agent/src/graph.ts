@@ -10,6 +10,7 @@ import { env } from "./env.js";
 import { SYSTEM_PROMPT } from "./prompt.js";
 import { createServerTools } from "./tools/server.js";
 import { loadMcpTools } from "./tools/mcp.js";
+import { createSubagentRegistry, buildSubagentTools, type SubagentRegistry } from "./tools/a2a.js";
 import { ariaStepsState, reduceSteps, type ToolCallLike } from "./progress.js";
 
 /**
@@ -44,6 +45,25 @@ const mergeSystemMessages = createMiddleware({
     });
   },
 });
+
+/**
+ * Injects the live subagent roster into the system message on every model call,
+ * so newly registered subagents (picked up by the registry's background refresh)
+ * are reflected in the prompt without rebuilding the graph. Runs just before
+ * `mergeSystemMessages`, which folds the appended roster into the single leading
+ * system message Gemini requires.
+ */
+function subagentRosterMiddleware(registry: SubagentRegistry) {
+  return createMiddleware({
+    name: "subagentRoster",
+    wrapModelCall: async (request, handler) => {
+      const roster = registry.roster();
+      if (!roster) return handler(request);
+      const baseText = typeof request.systemMessage?.content === "string" ? request.systemMessage.content : "";
+      return handler({ ...request, systemMessage: new SystemMessage(baseText + roster) });
+    },
+  });
+}
 
 /**
  * Streams a live progress log to the chat sidebar. It owns one extra piece of
@@ -113,6 +133,15 @@ export interface BuildAgentOptions {
   model?: BaseChatModel;
   serverTools?: StructuredToolInterface[];
   mcpTools?: StructuredToolInterface[];
+  /**
+   * Live, background-refreshed registry of A2A subagents. When provided, the agent
+   * gets the generic `list_subagents` / `delegate_to_subagent` tools plus a
+   * middleware that injects the current roster each turn — so newly registered
+   * subagents are usable without restarting.
+   */
+  subagentRegistry?: SubagentRegistry;
+  /** Override the system prompt (defaults to SYSTEM_PROMPT). */
+  systemPrompt?: string;
 }
 
 /**
@@ -128,15 +157,22 @@ export function buildAgent(opts: BuildAgentOptions = {}) {
   const model = opts.model ?? makeModel();
   const serverTools = opts.serverTools ?? createServerTools();
   const mcpTools = opts.mcpTools ?? [];
+  const registry = opts.subagentRegistry;
+  const subagentTools = registry ? buildSubagentTools(registry) : [];
   return createAgent({
     model,
-    tools: [...serverTools, ...mcpTools],
+    tools: [...serverTools, ...mcpTools, ...subagentTools],
     // Order matters: copilotkitMiddleware owns the AG-UI bridge (and emits the
     // STATE_SNAPSHOT that carries aria_steps); ariaProgress writes that state;
-    // mergeSystemMessages stays LAST so it folds in every system message just
-    // before the model call (Gemini accepts only one).
-    middleware: [copilotkitMiddleware, ariaProgress, mergeSystemMessages],
-    systemPrompt: SYSTEM_PROMPT,
+    // subagentRoster appends the live roster; mergeSystemMessages stays LAST so it
+    // folds every system message into one just before the model call (Gemini accepts only one).
+    middleware: [
+      copilotkitMiddleware,
+      ariaProgress,
+      ...(registry ? [subagentRosterMiddleware(registry)] : []),
+      mergeSystemMessages,
+    ],
+    systemPrompt: opts.systemPrompt ?? SYSTEM_PROMPT,
     // Bind a higher recursion limit as a FALLBACK for direct in-process
     // invocation (`.invoke()`/`.stream()` on this binding — e.g. the agent unit
     // tests). This does NOT govern the live app: under `langgraphjs dev` the graph
@@ -149,5 +185,9 @@ export function buildAgent(opts: BuildAgentOptions = {}) {
 
 /** Factory used by `langgraph.json` to instantiate the graph for the dev server. */
 export async function makeGraph() {
-  return buildAgent({ mcpTools: await loadMcpTools() });
+  const [mcpTools, subagentRegistry] = await Promise.all([loadMcpTools(), createSubagentRegistry()]);
+  // The registry keeps refreshing in the background; the generic delegate/list tools
+  // and the roster middleware read it live, so newly registered subagents are picked
+  // up without restarting the dev server.
+  return buildAgent({ mcpTools, subagentRegistry });
 }

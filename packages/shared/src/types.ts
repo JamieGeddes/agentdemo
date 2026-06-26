@@ -13,6 +13,39 @@ export type TicketPriority = (typeof TICKET_PRIORITIES)[number];
 export const CUSTOMER_PLANS = ["free", "pro", "enterprise"] as const;
 export type CustomerPlan = (typeof CUSTOMER_PLANS)[number];
 
+/**
+ * Access levels, ordered least → most privileged. The logged-in user's role
+ * travels with every A2A request (encoded in the bearer token) and is what the
+ * subagents check before performing an action. See `roleAtLeast` in guards.ts.
+ */
+export const USER_ROLES = ["readonly", "manager", "admin"] as const;
+export type UserRole = (typeof USER_ROLES)[number];
+
+/** A demo user of the support desk. */
+export interface User {
+  id: string;
+  name: string;
+  username: string;
+  role: UserRole;
+}
+
+/** What the server returns to the web app on a successful login. */
+export interface AuthSession {
+  user: User;
+  /** Simulated bearer credential (see `mintToken`); presented to subagents over A2A. */
+  token: string;
+}
+
+/**
+ * The caller claims a subagent recovers by decoding the shared bearer token —
+ * A2A's "shared context" reduced to the identity a remote agent needs to authorize.
+ */
+export interface CallerIdentity {
+  userId: string;
+  userName: string;
+  role: UserRole;
+}
+
 /** A single message in a ticket's conversation thread. */
 export interface Message {
   id: string;
@@ -49,6 +82,8 @@ export interface Customer {
   plan: CustomerPlan;
   /** Contracted response-time tier, e.g. "24h" / "8h" / "1h". */
   slaTier: string;
+  /** Number of paid seats on the account (drives the billing-seat admin action). */
+  seats: number;
 }
 
 /**
@@ -85,6 +120,7 @@ export interface TicketPatch {
 /** Fields a client (or the AI agent) may patch on a customer. */
 export interface CustomerPatch {
   plan?: CustomerPlan;
+  seats?: number;
 }
 
 /** Fields needed to create a new ticket; the rest (id/timestamps/messages) are generated. */

@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import type { FastifyInstance, FastifyPluginOptions } from "fastify";
 import {
   isCustomerPlan,
@@ -148,9 +149,47 @@ export async function ticketRoutes(app: FastifyInstance, opts: RouteOpts): Promi
     if (body.plan !== undefined && !isCustomerPlan(body.plan)) {
       return reply.code(400).send({ error: "invalid plan" });
     }
+    if (body.seats !== undefined && (!Number.isInteger(body.seats) || body.seats < 0)) {
+      return reply.code(400).send({ error: "seats must be a non-negative integer" });
+    }
 
     const updated = store.updateCustomer(id, body);
     if (!updated) return reply.code(404).send({ error: "customer not found" });
     return updated;
+  });
+
+  // Privileged account actions invoked by the account-admin subagent (after it has
+  // authorized the caller). They persist their effect — plan/seats mutate the
+  // customer row above; credit and key-rotation are recorded as activity (the demo
+  // has no billing/secret store, so the activity log IS the record). The subagent
+  // logs the activity itself via POST /api/activity, mirroring the web client.
+  app.post("/api/customers/:id/service-credit", async (req, reply) => {
+    const { id } = req.params as { id: string };
+    const body = (req.body ?? {}) as { amountCents?: unknown };
+    const amountCents = body.amountCents;
+    if (typeof amountCents !== "number" || !Number.isInteger(amountCents) || amountCents <= 0) {
+      return reply.code(400).send({ error: "amountCents must be a positive integer" });
+    }
+    const customer = store.getCustomer(id);
+    if (!customer) return reply.code(404).send({ error: "customer not found" });
+    return reply.code(201).send({
+      ok: true,
+      customer,
+      amountCents,
+      creditId: `cr_${randomUUID().slice(0, 12)}`,
+      issuedAt: new Date().toISOString(),
+    });
+  });
+
+  app.post("/api/customers/:id/rotate-api-key", async (req, reply) => {
+    const { id } = req.params as { id: string };
+    const customer = store.getCustomer(id);
+    if (!customer) return reply.code(404).send({ error: "customer not found" });
+    return reply.code(201).send({
+      ok: true,
+      customer,
+      keyId: `sk_live_${randomUUID().replace(/-/g, "").slice(0, 24)}`,
+      rotatedAt: new Date().toISOString(),
+    });
   });
 }

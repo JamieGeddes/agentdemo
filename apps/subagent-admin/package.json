@@ -1,0 +1,12 @@
+{
+  "name": "@agentdemo/subagent-admin",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Account-admin A2A subagent (Python + Google ADK). Not an npm package — scripts shell out to a Python venv.",
+  "scripts": {
+    "setup": "bash scripts/setup-venv.sh",
+    "dev": "bash scripts/run-uvicorn.sh",
+    "start": "bash scripts/run-uvicorn.sh",
+    "test": "bash scripts/run-pytest.sh"
+  }
+}

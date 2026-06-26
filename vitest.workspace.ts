@@ -7,4 +7,5 @@ export default [
   "apps/server/vitest.config.ts",
   "apps/agent/vitest.config.ts",
   "apps/web/vitest.config.ts",
+  "apps/subagent-insights/vitest.config.ts",
 ];

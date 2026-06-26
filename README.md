@@ -53,34 +53,86 @@ apps/server  Fastify: REST + CopilotKit runtime  ──────┘──> ap
    (`render_a2ui`); clicking a button on that panel routes the action back to Aria, which
    runs the real tool. The contrast in one chat: fixed-card generative UI (AG-UI) vs. UI
    whose *structure the agent designs* (A2UI).
+10. **A2A subagents with a shared context + authorization** — Aria delegates specialist
+    work to two **remote subagents over the [A2A protocol](https://github.com/a2aproject/A2A)**,
+    each advertising its capabilities through an **Agent Card**: an **Insights** agent
+    (TypeScript + LangGraph) for SLA/queue/customer reporting, and an **Account-Admin** agent
+    (**Python + Google ADK**) for privileged account actions (seats, service credit, API-key
+    rotation). The signed-in user's identity + role travels as the A2A **bearer credential**
+    (the "shared context"), and the subagents enforce **role-based authorization** — e.g. only
+    an **admin** may rotate an API key; a **manager** gets a non-applied preview; **readonly**
+    is denied, and the Insights report returns less detail. Subagents are discovered from a
+    `a2a-agents.json` manifest and registered under dummy hostnames (`*.vela.internal`) to
+    simulate remote agents.
 
 ## Prerequisites
 
 - Node ≥ 24 (see `.nvmrc`)
 - A **Gemini API key** — required only to run the agent's LLM loop.
   Get one at <https://aistudio.google.com/apikey>.
+- **Python ≥ 3.10** — only for the account-admin subagent (Google ADK). Everything else
+  runs without Python; if you skip it, that one subagent is simply offline (Aria degrades
+  gracefully).
 
 ## Setup
 
 ```bash
 npm install
 cp .env.example .env        # then edit .env and set GOOGLE_API_KEY=...
+npm run setup:admin         # one-time: create the Python venv for the account-admin subagent
 ```
 
 Key settings in `.env`: `GOOGLE_API_KEY`, `GEMINI_MODEL` (default `gemini-2.5-flash`),
 and the ports/URLs (`SERVER_PORT=4000`, `AGENT_PORT=2024`, `WEB_PORT=5173`).
 
-## Run
+**A2A subagents — map the dummy hostnames.** The two subagents bind `127.0.0.1` but advertise
+"remote" hostnames in their Agent Cards, so the main agent fetches their cards over those names.
+Add them to `/etc/hosts` (one-time). On macOS/Linux use the `sudo tee -a` form — a plain
+`sudo echo … >> /etc/hosts` fails because the `>>` redirect runs as your user, not root:
 
 ```bash
-npm run dev      # starts all three: agent (:2024), server (:4000), web (:5173)
+printf '\n# Vela A2A demo subagents (dummy hostnames → localhost)\n127.0.0.1 insights-agent.vela.internal account-admin.vela.internal vela-desk.vela.internal\n' | sudo tee -a /etc/hosts
+
+grep vela.internal /etc/hosts        # verify it landed
 ```
 
-Then open <http://localhost:5173>. The SQLite database is created and seeded
-automatically on first run.
+Run the append **once** (re-running adds duplicate lines — the `grep` lets you check first).
+`insights-agent.vela.internal` and `account-admin.vela.internal` are the load-bearing names;
+`vela-desk.vela.internal` only appears in Aria's own published card. macOS reads `/etc/hosts`
+immediately (no restart). To undo later, delete those lines (`sudo nano /etc/hosts`). Without the
+mapping the subagents just don't appear in the agent's registry/roster and Aria still runs without
+them (and they're picked up automatically once reachable — see the periodic refresh below).
 
-> Processes can also be started individually: `npm run dev:agent`,
-> `npm run dev:server`, `npm run dev:web`.
+## Run
+
+Use Node 24 and provide the Gemini key, then start everything. Run it in **one terminal**
+(`Ctrl-C` stops all six services and frees their ports):
+
+```bash
+nvm use                                       # Node 24 (reads .nvmrc) — required
+export GOOGLE_API_KEY="your-gemini-api-key"   # or set it in .env instead (see Setup)
+npm run dev      # starts all six: runbooks-mcp (:4100), agent (:2024), server (:4000),
+                 # web (:5173), insights subagent (:4200), account-admin subagent (:4300)
+```
+
+Then open <http://localhost:5173> and **sign in**. Three demo users (all share the password
+`veladesk`) have different access levels the subagents enforce:
+
+| Username   | Display name   | Role     | Can do via subagents                                         |
+|------------|----------------|----------|--------------------------------------------------------------|
+| `admin`    | Alice Admin    | admin    | everything — incl. seats / service credit / API-key rotation |
+| `manager`  | Morgan Manager | manager  | full reports; admin actions return a non-applied **preview** |
+| `readonly` | Robert Read    | readonly | summary-only reports; admin actions are **denied**           |
+
+The SQLite database is created and seeded automatically on first run. An `export` lasts for the
+current shell only — re-export in a new terminal, or set `GOOGLE_API_KEY` in `.env` to persist it.
+
+> Processes can also be started individually: `npm run dev:agent`, `npm run dev:server`,
+> `npm run dev:web`, `npm run dev:insights`, `npm run dev:admin`.
+>
+> To demo **dynamic subagent registration**, split the stack across two terminals instead of
+> `npm run dev`: `npm run dev:core` runs the app *without* subagents (runbooks, agent, server,
+> web), then `npm run dev:subagents` brings up the two subagents later — see below.
 
 ## Try it (demo script)
 
@@ -169,13 +221,76 @@ Aria designs the panel's **structure** at runtime from a small component catalog
   summarize the root cause as a card, and draft a reply to Tom."* — streams the
   progress panel, renders a citation + summary card, and ends in a reply approval.
 
+## Demo script: A2A subagents + authorization
+
+The point of this script is **the same request, three different sign-ins** — only the logged-in
+user changes, and the subagents enforce what each role may do. Switch users with the
+**⎋ sign-out** button on the nav rail (it reloads to the login screen); reset state afterwards
+with the **⟳** Reset-demo button.
+
+**Insights agent — role-tiers the detail.** Ask any of these; the report comes back richer the
+higher your role (`readonly` = summary only, no contacts/export; `manager`/`admin` = full ranked
+report + customer contacts + CSV). Aria delegates to the Insights subagent over A2A and relays it:
+
+- *"Give me an SLA risk report."*
+- *"How is the team's workload spread right now?"*
+- *"How healthy is the Acme Robotics account?"*
+
+**Account-Admin agent — allow / preview / deny by role.** Ask the same privileged request as each
+user and watch the outcome change: **admin** applies it, **manager** gets a non-applied preview,
+**readonly** is denied (Aria relays the subagent's reason):
+
+- *"Rotate Acme Robotics' API key."*
+- *"Set Globex Corp's seats to 30."*
+- *"Issue a $200 service credit to Hooli."*
+
+Applied changes persist: seat/plan changes show on the **Customers** page, and every admin action
+(including credit and key-rotation) lands in the activity feed — ask *"what did you do this
+session?"* to see Aria recap them.
+
+### Dynamic registration (start with no subagents, add them live)
+
+The main agent keeps a background-refreshed registry, so subagents can be registered *while it's
+running*. Demo it with two terminals:
+
+```bash
+# Terminal 1 — the app WITHOUT subagents (registry starts empty)
+npm run dev:core
+
+# Terminal 2 — bring the subagents up LATER
+npm run dev:subagents
+```
+
+1. With only `dev:core` running, sign in and ask *"what specialists can you delegate to?"* or
+   *"give me an SLA risk report"* → Aria reports there are **no subagents available** (its
+   `list_subagents` is empty).
+2. Now start `npm run dev:subagents`. Within a few seconds (`dev:core` sets `A2A_REFRESH_MS=8000`
+   for a snappy demo) the running agent's next refresh resolves their Agent Cards.
+3. Ask the **same** question again — Aria now lists the Insights and Account-Admin specialists and
+   delegates to them. **No restart of the main agent.** Stopping `dev:subagents` (Ctrl-C) removes
+   them again on the next refresh; `dev:core` keeps running throughout (the two halves free only
+   their own ports on teardown).
+
+The **🪪 Agent cards** panel (bottom-left of the app) makes this visual: expand it to see the main
+agent plus each registered subagent, with a live reachability dot (green when up) and a link that
+opens that agent's `/.well-known/agent-card.json`. Start `dev:subagents` and watch the dots flip
+green within a few seconds — and click a link to show what an A2A Agent Card actually looks like.
+
 ## Test
 
 ```bash
-npm test         # Vitest across shared / server / agent / web (no API key needed —
-                 # the model is mocked, so tests are deterministic and offline)
+npm test         # Vitest across shared / server / agent / web / subagent-insights
+                 # (no API key needed — the model is mocked, so tests are offline + deterministic)
 npm run typecheck
+
+# The Python account-admin subagent has its own pytest suite (authz + token decode),
+# run separately because it uses a different runner. Requires `npm run setup:admin` first:
+npm run test --workspace apps/subagent-admin
 ```
+
+The **live A2A round-trips** (Aria → subagents) and the **ADK subagent end-to-end** are
+live-only: they need the running services, the `/etc/hosts` entries, and a `GOOGLE_API_KEY`,
+so they aren't part of the offline suite.
 
 ## How the pieces connect
 
@@ -202,6 +317,20 @@ npm run typecheck
   a2ui={{ catalog }}`). The A2UI middleware injects a `render_a2ui` tool so Aria can
   compose a surface, streams it into chat, and feeds surface button clicks back into
   the next run for Aria to act on.
+- **A2A subagents** (`apps/subagent-insights`, TS + LangGraph + `@a2a-js/sdk`;
+  `apps/subagent-admin`, Python + Google ADK via `to_a2a()`). `apps/agent/src/tools/a2a.ts`
+  keeps a **background-refreshed registry**: it re-reads the repo-root `a2a-agents.json` manifest
+  and re-resolves every Agent Card on an interval (`A2A_REFRESH_MS`, default 30s), degrading
+  gracefully per-subagent. The agent exposes two **generic** tools over that registry —
+  `list_subagents` and `delegate_to_subagent(agent_id, request)` — and a middleware injects the
+  live roster into the prompt each turn, so a **newly registered subagent is picked up without a
+  restart** (a fixed per-subagent tool couldn't be, since a compiled graph's tool set is frozen).
+  The **shared context** is the signed-in session: the web app forwards it as structured
+  `CopilotKitProvider properties` → `forwardedProps.config.configurable.session` (never through the
+  LLM), and the delegation tool presents its token as an `Authorization: Bearer` credential on the
+  A2A call. Each subagent decodes that token to recover the caller's role and **authorizes
+  deterministically** (the Insights tools tier their output; the ADK agent gates writes in a
+  `before_tool_callback`). Privileged actions persist via the Fastify REST API and the activity feed.
 
 ## Notes & limitations
 
@@ -213,6 +342,14 @@ npm run typecheck
 - The agent's UI changes go through **frontend tools** (so the rep sees them in the
   UI) and persist via the REST API to SQLite.
 - The DeepWiki MCP connection degrades gracefully: if it's unreachable the agent
-  still works on local tickets.
+  still works on local tickets. **The A2A subagents degrade the same way** — if a subagent
+  (or its `/etc/hosts` entry) is missing it just isn't in the registry/roster, and the periodic
+  refresh (`A2A_REFRESH_MS`, default 30s) picks it up automatically once it's reachable — no restart.
+- **A2A is live-only.** The subagents run their own Gemini loops, so the round-trip isn't in
+  the mocked offline suite. The shared-context credential is **simulated** (an unsigned,
+  JWT-shaped token carrying `{ userId, userName, role }`) — fine for the demo, not real auth.
+- The account-admin subagent reads the bearer token at the HTTP layer (pure-ASGI middleware →
+  `contextvars`) because ADK doesn't propagate A2A request metadata into tool context
+  ([adk-python#3098](https://github.com/google/adk-python/issues/3098)).
 - This is a PoC: in-process dev servers, seeded demo data, and a single graph.
   Production would use a deployed LangGraph runtime, auth, and real persistence.

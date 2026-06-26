@@ -14,5 +14,7 @@ export const env = {
   webPort: Number(process.env.WEB_PORT ?? 5173),
   /** Absolute path for the SQLite file (":memory:" under test). */
   dbFile: process.env.NODE_ENV === "test" ? ":memory:" : resolve(here, "../data/support.db"),
+  /** Repo-root A2A subagent manifest — read to list Agent Card links for the UI. */
+  a2aManifestPath: process.env.A2A_MANIFEST_PATH ?? resolve(here, "../../../a2a-agents.json"),
   isTest: process.env.NODE_ENV === "test",
 };

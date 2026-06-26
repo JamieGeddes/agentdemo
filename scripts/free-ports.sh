@@ -8,8 +8,10 @@
 # we go straight to SIGKILL.
 set -u
 
-# runbooks-mcp, agent/LangGraph, server/Fastify, web/Vite
-PORTS="4100 2024 4000 5173"
+# Ports to free. With no args, frees ALL dev ports; pass a subset to free only those
+# — so `dev:core` and `dev:subagents` can tear down independently without killing each
+# other. Ports: runbooks 4100 · agent 2024 · server 4000 · web 5173 · insights 4200 · admin 4300
+PORTS="${*:-4100 2024 4000 5173 4200 4300}"
 
 for port in $PORTS; do
   pids=$(lsof -ti "tcp:$port" -sTCP:LISTEN 2>/dev/null || true)

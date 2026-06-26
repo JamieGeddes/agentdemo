@@ -1,4 +1,4 @@
-import type { Agent, Customer, Message, Ticket } from "./types.js";
+import type { Agent, Customer, Message, Ticket, User } from "./types.js";
 
 /**
  * Deterministic seed data for the PoC. Ticket/message timestamps are expressed
@@ -20,12 +20,40 @@ export const seedAgents: Agent[] = [
 ];
 
 export const seedCustomers: Customer[] = [
-  { id: "c1", company: "Acme Robotics", contactName: "Priya Nair", email: "priya@acmerobotics.com", plan: "enterprise", slaTier: "1h" },
-  { id: "c2", company: "Globex Corp", contactName: "Tom Becker", email: "tom@globex.io", plan: "pro", slaTier: "8h" },
-  { id: "c3", company: "Initech", contactName: "Sara Lund", email: "sara@initech.com", plan: "pro", slaTier: "8h" },
-  { id: "c4", company: "Umbrella Health", contactName: "Marcus Lee", email: "marcus@umbrella.health", plan: "enterprise", slaTier: "1h" },
-  { id: "c5", company: "Hooli", contactName: "Dana Swift", email: "dana@hooli.com", plan: "free", slaTier: "24h" },
+  { id: "c1", company: "Acme Robotics", contactName: "Priya Nair", email: "priya@acmerobotics.com", plan: "enterprise", slaTier: "1h", seats: 40 },
+  { id: "c2", company: "Globex Corp", contactName: "Tom Becker", email: "tom@globex.io", plan: "pro", slaTier: "8h", seats: 25 },
+  { id: "c3", company: "Initech", contactName: "Sara Lund", email: "sara@initech.com", plan: "pro", slaTier: "8h", seats: 25 },
+  { id: "c4", company: "Umbrella Health", contactName: "Marcus Lee", email: "marcus@umbrella.health", plan: "enterprise", slaTier: "1h", seats: 60 },
+  { id: "c5", company: "Hooli", contactName: "Dana Swift", email: "dana@hooli.com", plan: "free", slaTier: "24h", seats: 5 },
 ];
+
+/** A demo user including the (plaintext, demo-only) password used at login. */
+export interface SeedUser extends User {
+  password: string;
+}
+
+/**
+ * Shared demo password for every account. App-themed and memorable, and (unlike a
+ * password equal to the username) not a weak/breached string the browser warns about.
+ * Demo only — never hardcode a real credential.
+ */
+export const DEMO_PASSWORD = "veladesk";
+
+/**
+ * Three hardcoded demo users, one per access level — all share `DEMO_PASSWORD`.
+ * The `role` is what the subagents check once it travels with the request inside
+ * the shared bearer token.
+ */
+export const seedUsers: SeedUser[] = [
+  { id: "u1", name: "Alice Admin", username: "admin", password: DEMO_PASSWORD, role: "admin" },
+  { id: "u2", name: "Morgan Manager", username: "manager", password: DEMO_PASSWORD, role: "manager" },
+  { id: "u3", name: "Robert Read", username: "readonly", password: DEMO_PASSWORD, role: "readonly" },
+];
+
+/** Find a user by exact username + password. Returns undefined on no match. */
+export function findUserByLogin(username: string, password: string): SeedUser | undefined {
+  return seedUsers.find((u) => u.username === username && u.password === password);
+}
 
 /** A seed message with its timestamp expressed as minutes before the seed anchor. */
 type MessageSpec = Omit<Message, "createdAt"> & { createdMinAgo: number };

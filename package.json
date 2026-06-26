@@ -10,15 +10,20 @@
   ],
   "scripts": {
     "dev": "bash scripts/dev.sh",
+    "dev:core": "bash scripts/dev-core.sh",
+    "dev:subagents": "bash scripts/dev-subagents.sh",
     "dev:agent": "npm run dev --workspace apps/agent",
     "dev:server": "npm run dev --workspace apps/server",
     "dev:web": "npm run dev --workspace apps/web",
     "dev:runbooks": "npm run dev --workspace apps/runbooks-mcp",
+    "dev:insights": "npm run dev --workspace apps/subagent-insights",
+    "dev:admin": "npm run dev --workspace apps/subagent-admin",
+    "setup:admin": "npm run setup --workspace apps/subagent-admin",
     "reset": "npm run reset --workspace apps/server",
     "build": "npm run build --workspaces --if-present",
     "test": "vitest run",
     "test:watch": "vitest",
-    "typecheck": "tsc -p packages/shared && tsc -p apps/server --noEmit && tsc -p apps/agent --noEmit && tsc -p apps/web --noEmit && tsc -p apps/runbooks-mcp --noEmit"
+    "typecheck": "tsc -p packages/shared && tsc -p apps/server --noEmit && tsc -p apps/agent --noEmit && tsc -p apps/web --noEmit && tsc -p apps/runbooks-mcp --noEmit && tsc -p apps/subagent-insights --noEmit"
   },
   "devDependencies": {
     "concurrently": "^9.1.0",

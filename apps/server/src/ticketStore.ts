@@ -158,7 +158,8 @@ export class TicketStore {
     if (!existing) return null;
 
     const plan = patch.plan ?? existing.plan;
-    this.db.prepare("UPDATE customers SET plan=? WHERE id=?").run(plan, id);
+    const seats = patch.seats ?? existing.seats;
+    this.db.prepare("UPDATE customers SET plan=?, seats=? WHERE id=?").run(plan, seats, id);
     return this.getCustomer(id);
   }
 
