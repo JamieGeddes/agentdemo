@@ -23,5 +23,12 @@ export const env = {
   deepwikiUrl: process.env.DEEPWIKI_MCP_URL ?? "https://mcp.deepwiki.com/mcp",
   /** Local internal-runbooks MCP server (streamable HTTP) — see apps/runbooks-mcp. */
   runbooksUrl: process.env.RUNBOOKS_MCP_URL ?? "http://127.0.0.1:4100/mcp",
+  /** Manifest of A2A subagents the agent delegates to (repo-root a2a-agents.json). */
+  a2aManifestPath: process.env.A2A_MANIFEST_PATH ?? resolve(here, "../../../a2a-agents.json"),
+  /** Per-subagent connection/agent-card timeout (ms) — graceful degradation if exceeded. */
+  a2aTimeoutMs: Number(process.env.A2A_TIMEOUT_MS ?? 10_000),
+  /** How often (ms) to re-read the manifest + re-resolve subagent cards, so newly
+   *  registered subagents are picked up without restarting the agent. */
+  a2aRefreshMs: Number(process.env.A2A_REFRESH_MS ?? 30_000),
   isTest: process.env.NODE_ENV === "test",
 };

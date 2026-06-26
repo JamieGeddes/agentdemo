@@ -1,0 +1,4 @@
+[
+  { "id": "insights", "url": "http://insights-agent.vela.internal:4200" },
+  { "id": "account_admin", "url": "http://account-admin.vela.internal:4300" }
+]

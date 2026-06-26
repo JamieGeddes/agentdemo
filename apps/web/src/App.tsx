@@ -1,10 +1,13 @@
 import { useCallback, useState } from "react";
 import { CopilotKitProvider, CopilotSidebar } from "@copilotkit/react-core/v2";
 import { api } from "./api.js";
+import { AuthProvider, useAuth } from "./state/AuthProvider.js";
+import { LoginGate } from "./components/LoginGate.js";
 import { TicketsProvider, useTickets } from "./state/TicketsProvider.js";
 import { CopilotActions } from "./copilot/actions.js";
 import { supportCatalog } from "./copilot/a2uiCatalog.js";
 import { AriaProgressPanel } from "./components/AriaProgressPanel.js";
+import { AgentCardsPanel } from "./components/AgentCardsPanel.js";
 import { TicketList } from "./components/TicketList.js";
 import { TicketDetail } from "./components/TicketDetail.js";
 import { CustomersPage } from "./components/CustomersPage.js";
@@ -13,6 +16,7 @@ const AGENT_ID = "support_agent";
 
 function Rail() {
   const { view, setView } = useTickets();
+  const { session, logout } = useAuth();
   const [resetting, setResetting] = useState(false);
 
   const resetDemo = useCallback(async () => {
@@ -52,6 +56,21 @@ function Rail() {
       <button className="rail__item" title="Reports">▤</button>
       <button className="rail__item" title="Knowledge">📖</button>
       <div className="rail__spacer" />
+      {session && (
+        <div className={`rail__user rail__user--${session.user.role}`} title={`${session.user.name} · ${session.user.role}`}>
+          {session.user.role[0].toUpperCase()}
+        </div>
+      )}
+      <button
+        className="rail__item"
+        title={session ? `Sign out (${session.user.name})` : "Sign out"}
+        onClick={() => {
+          logout();
+          window.location.reload();
+        }}
+      >
+        ⎋
+      </button>
       <button
         className="rail__item"
         title="Reset demo to defaults"
@@ -89,7 +108,11 @@ function Desk() {
   );
 }
 
-export default function App() {
+/** The app once a user is signed in: the session is forwarded to the agent here. */
+function AuthedApp() {
+  const { session } = useAuth();
+  if (!session) return null; // unreachable — LoginGate guarantees a session
+
   return (
     <CopilotKitProvider
       runtimeUrl="/api/copilotkit"
@@ -99,21 +122,38 @@ export default function App() {
       // `includeSchema` defaults to true, so the catalog's component schema is sent to
       // Aria as context — no server-side schema needed.
       a2ui={{ catalog: supportCatalog }}
+      // Forward the signed-in session as STRUCTURED data (not via the LLM). The
+      // exact nesting matters: provider `properties` are spread into the agent run's
+      // `forwardedProps`, and `forwardedProps.config.configurable` merges into the
+      // LangGraph run config — where the A2A delegation tools read `.session` and
+      // present its token as the bearer credential to the subagents.
+      properties={{ config: { configurable: { session: { user: session.user, token: session.token } } } }}
       showDevConsole={false}
     >
       <TicketsProvider>
         <Desk />
         <AriaProgressPanel />
+        <AgentCardsPanel />
         <CopilotSidebar
           agentId={AGENT_ID}
           isModalDefaultOpen
           labels={{
             modalHeaderTitle: "Aria · Support Copilot",
             welcomeMessageText:
-              'Hi! I\'m Aria. Try: "show urgent open tickets", "open T-1001 and summarize it", "open Acme Robotics and summarize their account", or "upgrade Hooli to pro".',
+              'Hi! I\'m Aria. Try: "show urgent open tickets", "open T-1001 and summarize it", "give me an SLA risk report", or "rotate Acme Robotics\' API key".',
           }}
         />
       </TicketsProvider>
     </CopilotKitProvider>
+  );
+}
+
+export default function App() {
+  return (
+    <AuthProvider>
+      <LoginGate>
+        <AuthedApp />
+      </LoginGate>
+    </AuthProvider>
   );
 }

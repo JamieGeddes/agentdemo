@@ -29,7 +29,8 @@ function createSchema(db: DB): void {
       contactName TEXT NOT NULL,
       email       TEXT NOT NULL,
       plan        TEXT NOT NULL,
-      slaTier     TEXT NOT NULL
+      slaTier     TEXT NOT NULL,
+      seats       INTEGER NOT NULL DEFAULT 0
     );
     CREATE TABLE IF NOT EXISTS agents (
       id     TEXT PRIMARY KEY,
@@ -73,7 +74,7 @@ function createSchema(db: DB): void {
 /** Insert the seed fixtures. NO transaction of its own — callers wrap it. */
 function insertSeedRows(db: DB): void {
   const insertCustomer = db.prepare(
-    "INSERT INTO customers (id, company, contactName, email, plan, slaTier) VALUES (@id, @company, @contactName, @email, @plan, @slaTier)",
+    "INSERT INTO customers (id, company, contactName, email, plan, slaTier, seats) VALUES (@id, @company, @contactName, @email, @plan, @slaTier, @seats)",
   );
   const insertAgent = db.prepare("INSERT INTO agents (id, name, avatar) VALUES (@id, @name, @avatar)");
   const insertTicket = db.prepare(

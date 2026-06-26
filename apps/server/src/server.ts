@@ -4,6 +4,8 @@ import { env } from "./env.js";
 import { createDb } from "./db.js";
 import { TicketStore } from "./ticketStore.js";
 import { ticketRoutes } from "./routes/tickets.js";
+import { authRoutes } from "./routes/auth.js";
+import { agentCardRoutes } from "./routes/agentCard.js";
 import { registerCopilotRuntime } from "./copilot.js";
 
 export interface BuildOptions {
@@ -21,6 +23,8 @@ export async function buildServer(opts: BuildOptions = {}): Promise<FastifyInsta
 
   await app.register(cors, { origin: true });
   await app.register(ticketRoutes, { store });
+  await app.register(authRoutes);
+  await app.register(agentCardRoutes);
 
   app.get("/health", async () => ({ status: "ok" }));
 

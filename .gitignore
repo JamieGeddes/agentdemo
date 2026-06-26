@@ -19,6 +19,12 @@ coverage/
 .langgraph_api/
 apps/agent/.langgraph_api/
 
+# Python (account-admin subagent venv + caches)
+apps/subagent-admin/.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+
 # Editor / OS
 .DS_Store
 .idea/

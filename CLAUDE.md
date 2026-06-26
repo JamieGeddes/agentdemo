@@ -13,11 +13,16 @@ script.
 npm install                  # one install for the whole workspace
 cp .env.example .env         # then set GOOGLE_API_KEY (only needed to run the agent live)
 
-npm run dev                  # starts all four: runbooks-mcp (:4100), agent (:2024), server (:4000), web (:5173)
+npm run dev                  # starts all six: runbooks-mcp (:4100), agent (:2024), server (:4000), web (:5173), insights (:4200), admin (:4300)
+npm run dev:core             # the app WITHOUT subagents (runbooks+agent+server+web) — registry starts empty; sets A2A_REFRESH_MS=8000
+npm run dev:subagents        # ONLY the subagents (insights+admin) — start AFTER dev:core to demo dynamic registration (no main-agent restart)
 npm run dev:agent            # langgraphjs dev server only
 npm run dev:server           # Fastify only (tsx watch)
 npm run dev:web              # Vite only
 npm run dev:runbooks         # internal-runbooks MCP server only (tsx watch)
+npm run dev:insights         # Insights A2A subagent only (TS/LangGraph, :4200)
+npm run dev:admin            # Account-admin A2A subagent only (Python/ADK uvicorn, :4300)
+npm run setup:admin          # one-time: create the Python venv for the account-admin subagent (needs Python >=3.10)
 npm run reset                # wipe + re-seed the SQLite DB back to defaults (undo a demo session)
 
 npm test                     # Vitest across all workspaces (model is MOCKED — no API key, offline, deterministic)
@@ -48,6 +53,16 @@ button on the nav rail (`POST /api/reset` → re-seeds + reloads) or `npm run re
   HTTP, stateless) serving internal product/operational runbooks the public DeepWiki
   can't (webhook HMAC, billing seats, API-key rotation). Loaded by the agent alongside
   DeepWiki; degrades gracefully if down.
+- `apps/subagent-insights` (`@agentdemo/subagent-insights`) — an **A2A** subagent
+  (TypeScript + LangGraph + `@a2a-js/sdk`, :4200) for SLA/queue/customer reporting.
+  Its tools tier their output by the caller's role.
+- `apps/subagent-admin` (`@agentdemo/subagent-admin`) — an **A2A** subagent in
+  **Python + Google ADK** (`to_a2a()` under uvicorn, :4300) for privileged account
+  actions (seats / service credit / API-key rotation). NOT an npm package: its
+  `package.json` scripts shell out to a Python venv (`npm run setup:admin`); it has its
+  own `pytest` suite (run via `npm run test --workspace apps/subagent-admin`), separate
+  from the root Vitest. The main agent discovers both from the repo-root `a2a-agents.json`
+  manifest and degrades gracefully if either is down.
 
 ## Architecture / data flow
 
@@ -58,9 +73,18 @@ browser ──/api (Vite proxy)──> Fastify (:4000) ─┬─ REST /api/ticke
                                                         ▼
                                       LangGraph dev server (:2024) — Gemini + tools
                                               ├─ server tools → Fastify REST
-                                              └─ MCP tools → DeepWiki (remote, no auth)
-                                                          └→ runbooks-mcp (:4100, local)
+                                              ├─ MCP tools → DeepWiki (remote, no auth)
+                                              │           └→ runbooks-mcp (:4100, local)
+                                              └─ A2A delegation tools (Authorization: Bearer)
+                                                   ├→ insights-agent.vela.internal:4200  (TS/LangGraph)
+                                                   └→ account-admin.vela.internal:4300   (Python/ADK) → Fastify REST
 ```
+
+The signed-in session (user + simulated token) flows browser → agent as structured
+`forwardedProps.config.configurable.session` (NOT through the LLM); the agent presents the
+token as the A2A bearer credential, and each subagent decodes it to authorize by role.
+Subagents are discovered from the repo-root `a2a-agents.json` manifest; the dummy
+`*.vela.internal` hostnames map to 127.0.0.1 via `/etc/hosts`.
 
 The browser only ever talks to its own origin; Vite proxies `/api/*` to Fastify
 (`apps/web/vite.config.ts`), so REST and the CopilotKit endpoint are same-origin
@@ -167,7 +191,36 @@ rep visibly sees the agent act in the UI (writes still persist to SQLite via RES
   wrapper SIGKILLs stale port listeners before starting and traps `EXIT/INT/TERM` to
   free them again on teardown (via `scripts/free-ports.sh`), because Ctrl-C doesn't
   reliably reach the grandchild `tsx watch` / `langgraphjs dev` processes — without
-  this they orphan and squat on `:4100/:2024/:4000/:5173`.
+  this they orphan and squat on `:4100/:2024/:4000/:5173` (now also `:4200/:4300`).
+- **A2A subagents: the shared context is a bearer token, not LLM context.** The web app
+  forwards the signed-in session as `CopilotKitProvider properties={{ config: { configurable:
+  { session } } }}` — the **exact** nesting matters (CopilotKit spreads `properties` into
+  `forwardedProps`, and `@ag-ui/langgraph` merges `forwardedProps.config` into the run config).
+  The delegation tool (`apps/agent/src/tools/a2a.ts`) reads `config.configurable.session` and
+  sends the token as `Authorization: Bearer`; if you only see `readonly` behavior, that wiring
+  (or the `config_schema` passthrough) is the first thing to check — there's a `console.warn`
+  probe in the tool. Never route the token through `useAgentContext` (that's the LLM prompt).
+- **A2A delegation is registry-based + dynamic, not one tool per subagent.** `apps/agent/src/tools/a2a.ts`
+  keeps a `SubagentRegistry` that re-reads the manifest + re-resolves cards every `A2A_REFRESH_MS`
+  (default 30s), and the agent exposes two GENERIC tools over it — `list_subagents` and
+  `delegate_to_subagent(agent_id, request)` — plus a `subagentRosterMiddleware` that injects the live
+  roster into the system message each turn (via `wrapModelCall`, just before `mergeSystemMessages`).
+  This is what lets newly registered subagents be picked up without a restart; a fixed per-subagent
+  tool can't, because the compiled `createAgent` tool node is frozen at build. Don't reintroduce
+  per-agent `delegate_to_<id>` tools.
+- **A2A dummy hostnames need `/etc/hosts`.** Subagents bind `127.0.0.1` but advertise
+  `insights-agent.vela.internal` / `account-admin.vela.internal` in their Agent Cards (and the
+  manifest). Without the `/etc/hosts` mapping the cards don't resolve, so the subagent just isn't in
+  the registry/roster (graceful degradation); the periodic refresh adds it once reachable. Keep binds on `127.0.0.1`.
+- **The Python subagent pins `a2a-sdk` to the 0.3.x line** (via `google-adk[a2a]`), matching
+  the `@a2a-js/sdk` 0.3.x the main agent uses (protocol `0.3.0`). Do NOT let `a2a-sdk` resolve
+  to `1.x` — ADK needs `a2a.server.apps`, which the 1.x rewrite removed. It also needs
+  `sse-starlette`. ADK doesn't propagate A2A request metadata to tool context (adk-python#3098),
+  so the bearer token is read by a **pure-ASGI** middleware → `contextvars` (`app/caller.py`)
+  and authz is enforced in a `before_tool_callback` reading that contextvar.
+- **Use Node 24 for everything.** `better-sqlite3` is built against the project's Node (>=24);
+  running tests/scripts under an older Node (e.g. a shell defaulting to 22) fails with a
+  `NODE_MODULE_VERSION` mismatch. `.nvmrc` pins 24.
 
 ## Tests
 

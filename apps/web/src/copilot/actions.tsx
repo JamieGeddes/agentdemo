@@ -16,6 +16,7 @@ import {
   type TicketPriority,
 } from "@agentdemo/shared";
 import { useTickets } from "../state/TicketsProvider.js";
+import { useAuth } from "../state/AuthProvider.js";
 import { suggestionsForView } from "./suggestions.js";
 import {
   ActivityRecapCard,
@@ -63,8 +64,18 @@ export function CopilotActions({ onFlash }: { onFlash: (id: string) => void }) {
     sendMessage,
     sessionId,
   } = useTickets();
+  const { session } = useAuth();
 
   // ── Share the rep's current view with the agent ──────────────────────────
+  // The signed-in identity + permission level (NOT the token — that travels as
+  // structured `properties`, not through the prompt). Lets Aria explain why a
+  // subagent allowed or refused an action for the current user.
+  useAgentContext({
+    description:
+      "The signed-in support rep's identity and permission level (role: readonly | manager | admin). " +
+      "Use it to explain capability/permission limits when a subagent allows or refuses an action. Never repeat any access token.",
+    value: JSON.stringify({ userName: session?.user.name, role: session?.user.role }),
+  });
   useAgentContext({
     description: "Tickets matching the rep's current inbox filters",
     value: tickets.map((t) => ({

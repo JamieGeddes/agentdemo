@@ -94,6 +94,62 @@ button { font-family: inherit; cursor: pointer; }
 .rail__item:hover { background: var(--ink-700); color: #fff; }
 .rail__item--active { background: var(--accent); color: #fff; }
 .rail__spacer { flex: 1; }
+.rail__user {
+  width: 30px; height: 30px;
+  border-radius: 50%;
+  display: grid; place-items: center;
+  font-size: 12px; font-weight: 700;
+  color: #fff;
+  margin-bottom: 2px;
+  border: 2px solid rgba(255, 255, 255, 0.15);
+}
+.rail__user--admin { background: var(--accent); }
+.rail__user--manager { background: var(--blue); }
+.rail__user--readonly { background: var(--slate-500); }
+
+/* Login gate */
+.login {
+  position: fixed; inset: 0;
+  display: grid; place-items: center;
+  background: var(--ink-900);
+  padding: 24px;
+}
+.login__card {
+  width: 340px;
+  background: var(--surface);
+  border-radius: var(--radius);
+  padding: 28px 26px;
+  display: flex; flex-direction: column; gap: 14px;
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.4);
+}
+.login__brand {
+  font-weight: 800; letter-spacing: 0.5px;
+  color: var(--accent); font-size: 20px;
+}
+.login__title { margin: 0; font-size: 17px; color: var(--ink-900); }
+.login__field { display: flex; flex-direction: column; gap: 5px; font-size: 13px; color: var(--slate-600); }
+.login__field input {
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  padding: 9px 11px; font-size: 14px;
+  outline: none;
+}
+.login__field input:focus { border-color: var(--accent); }
+.login__error { margin: 0; color: var(--red); font-size: 13px; }
+.login__submit {
+  background: var(--accent); color: #fff;
+  border: none; border-radius: var(--radius-sm);
+  padding: 10px; font-size: 14px; font-weight: 600;
+  cursor: pointer;
+}
+.login__submit:disabled { opacity: 0.6; cursor: default; }
+.login__hint { font-size: 12px; color: var(--slate-500); display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
+.login__demo {
+  border: 1px solid var(--line); background: var(--canvas);
+  border-radius: 6px; padding: 2px 8px; font-size: 12px;
+  color: var(--accent-strong); cursor: pointer;
+}
+.login__demo:hover { background: var(--accent-soft); }
 
 /* List column */
 .list {
@@ -297,6 +353,32 @@ button { font-family: inherit; cursor: pointer; }
 .aria-step--done .aria-step__mark { border-color: var(--green); }
 .aria-step__detail { color: var(--slate-400); }
 @keyframes aria-pulse { 0%, 100% { box-shadow: 0 0 0 0 var(--accent-soft); } 50% { box-shadow: 0 0 0 4px var(--accent-soft); } }
+
+/* A2A Agent Cards panel — demo affordance, pinned bottom-left (clear of the chat). */
+.cards-panel { position: fixed; left: 84px; bottom: 16px; z-index: 50; font-size: 12.5px; }
+.cards-panel__toggle {
+  display: inline-flex; align-items: center; gap: 6px;
+  background: var(--surface); border: 1px solid var(--line); border-radius: 999px;
+  padding: 6px 12px; cursor: pointer; color: var(--ink-700); font-weight: 600;
+  box-shadow: var(--shadow-sm);
+}
+.cards-panel__toggle:hover { border-color: var(--slate-300); }
+.cards-panel__count { color: var(--slate-500); font-weight: 700; }
+.cards-panel__list {
+  list-style: none; margin: 0 0 8px; padding: 8px; width: 290px;
+  background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius-sm);
+  box-shadow: var(--shadow-md); animation: modal-in 0.14s ease;
+}
+.cards-panel__head { font-weight: 700; color: var(--ink-800); padding: 2px 4px 8px; }
+.cards-panel__row { display: flex; align-items: center; gap: 8px; padding: 5px 4px; }
+.cards-panel__dot { width: 8px; height: 8px; border-radius: 999px; flex-shrink: 0; }
+.cards-panel__dot--up { background: var(--green); box-shadow: 0 0 0 3px var(--green-soft); }
+.cards-panel__dot--down { background: var(--slate-300); }
+.cards-panel__name { flex: 1; color: var(--ink-700); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cards-panel__tag { margin-left: 6px; font-size: 10px; font-weight: 700; color: var(--accent-strong); background: var(--accent-soft); border-radius: 4px; padding: 1px 5px; }
+.cards-panel__link { color: var(--accent); text-decoration: none; font-weight: 600; flex-shrink: 0; }
+.cards-panel__link:hover { text-decoration: underline; }
+.cards-panel__empty { color: var(--slate-400); padding: 4px; }
 
 /* Reply approval (HITL) */
 .approve { border: 1px solid #dcdcfb; }
